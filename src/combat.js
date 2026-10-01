@@ -60,7 +60,7 @@ function patrolBounds(scene, column, row) {
   return { first, last };
 }
 
-export function setupEnemy(scene, enemy, index) {
+export function setupEnemy(scene, enemy, index, variant = index % 3) {
   // Put each guardian on a nearby surface rather than letting a spawn over a pit fall.
   let surface = null, best = Infinity;
   scene.groundLayer.forEachTile(tile => {
@@ -73,16 +73,60 @@ export function setupEnemy(scene, enemy, index) {
     if (score < best) { surface = tile; best = score; }
   });
   if (surface) enemy.body.reset(surface.pixelX + 9, surface.pixelY - 9);
-  enemy.guardianVariant = index % 3;
+  enemy.guardianVariant = variant;
   enemy.patrolDirection = -1;
   enemy.attackUntil = 0;
   enemy.nextAttack = scene.time.now + 3000;
   enemy.patrolOrigin = enemy.x;
+  enemy.nextJump = scene.time.now + 1000 + Math.random() * 2000;
+  enemy.airSpeed = 0;
   enemy.play(`guardian-walk-${enemy.guardianVariant}`);
 }
 
+export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
+  const body = enemy.body;
+  if (body.top > scene.map.heightInPixels + 36) {
+    enemy.destroy();
+    return;
+  }
+  if (body.blocked.down) {
+    enemy.airSpeed = 0;
+    const width = scene.map.tileWidth, height = scene.map.tileHeight;
+    const row = Math.floor((body.bottom + 2) / height);
+    const aheadX = body.center.x + enemy.patrolDirection * (body.width / 2 + 6);
+    const ahead = Math.floor(aheadX / width);
+    const wall = body.blocked.left || body.blocked.right ||
+      scene.groundLayer.getTileAt(ahead, row - 1)?.collides;
+    const gap = !scene.groundLayer.getTileAt(ahead, row)?.collides;
+    if (body.left <= 2 || body.right >= scene.map.widthInPixels - 2) {
+      enemy.patrolDirection = body.left <= 2 ? 1 : -1;
+    } else if (now >= enemy.nextJump) {
+      // Decide once per encounter; a skipped jump turns back instead of retrying every frame.
+      if (wall || gap || Math.random() < 0.025) {
+        enemy.nextJump = now + 900 + Math.random() * 1400;
+        const choice = Math.random();
+        if (choice < 0.2) {
+          if (wall || gap) enemy.patrolDirection *= -1;
+        } else {
+          const strong = choice >= 0.4;
+          enemy.airSpeed = strong ? 125 + Math.random() * 25 : 65 + Math.random() * 20;
+          enemy.setVelocityY(strong ? -285 : -145);
+        }
+      }
+    } else if (wall || gap) {
+      enemy.patrolDirection *= -1;
+    }
+  } else if (body.blocked.left || body.blocked.right) {
+    enemy.patrolDirection = body.blocked.left ? 1 : -1;
+  }
+  enemy.setVelocityX((enemy.airSpeed || speed) * enemy.patrolDirection);
+  enemy.setFlipX(enemy.patrolDirection > 0);
+  enemy.play(`guardian-walk-${enemy.guardianVariant}`, true);
+}
+
 export function throwRock(scene, enemy) {
-  if (scene.currentLevel < 3 || scene.isLevelFinished || !enemy.active || !enemy.body?.enable) return null;
+  // Variant 1 is the black guardian; the other guardians only move and jump.
+  if (enemy.guardianVariant !== 1 || scene.currentLevel < 3 || scene.isLevelFinished || !enemy.active || !enemy.body?.enable) return null;
   const dx = scene.player.body.center.x - enemy.body.center.x;
   const direction = dx >= 0 ? 1 : -1;
   const rock = scene.rockProjectiles.create(enemy.body.center.x + direction * 15,
@@ -123,10 +167,40 @@ export function updateCombat(scene) {
   const now = scene.time.now;
   scene.enemies.getChildren().forEach(enemy => {
     if (!enemy.active || !enemy.body?.enable) return;
+    if (enemy.body.top > scene.map.heightInPixels + 36) { enemy.destroy(); return; }
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);
     if (now < enemy.attackUntil) { enemy.setVelocityX(0); return; }
-    if (scene.currentLevel >= 3 && Math.abs(dx) < 240 && dy < 100 &&
+    if (enemy.guardianVariant === 2 && scene.currentLevel >= 3 && Math.abs(dx) < 360 && dy < 120) {
+      enemy.patrolDirection = dx >= 0 ? 1 : -1;
+      if (Math.abs(dx) < 28 && dy < 24 && enemy.body.blocked.down && now >= enemy.nextAttack) {
+        enemy.setVelocityX(0);
+        enemy.setFlipX(dx > 0);
+        enemy.attackUntil = now + 650;
+        enemy.nextAttack = now + 1200;
+        enemy.play(`guardian-attack-${enemy.guardianVariant}`);
+        scene.time.delayedCall(220, () => {
+          if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished || !scene.player.body?.enable) return;
+          if (Math.abs(scene.player.x - enemy.x) < 32 &&
+              Math.abs(scene.player.body.center.y - enemy.body.center.y) < 26) {
+            scene.handlePlayerEnemyCollision(scene.player, enemy, true);
+          }
+        });
+      } else if (scene.currentLevel >= 5) {
+        roamEnemy(scene, enemy, now, scene.enemySpeed * 1.6);
+      } else {
+        // Chase on foot in early levels, stopping at walls and ledges.
+        const row = Math.floor((enemy.body.bottom + 2) / scene.map.tileHeight);
+        const ahead = Math.floor((enemy.body.center.x + enemy.patrolDirection * 13) / scene.map.tileWidth);
+        const blocked = enemy.body.blocked.left || enemy.body.blocked.right ||
+          !patrolSurface(scene, ahead, row);
+        enemy.setVelocityX(blocked ? 0 : scene.enemySpeed * 1.6 * enemy.patrolDirection);
+        enemy.setFlipX(enemy.patrolDirection > 0);
+        enemy.play(`guardian-walk-${enemy.guardianVariant}`, true);
+      }
+      return;
+    }
+    if (enemy.guardianVariant === 1 && scene.currentLevel >= 3 && Math.abs(dx) < 240 && dy < 100 &&
         enemy.body.blocked.down && now >= enemy.nextAttack) {
       enemy.setFlipX(dx > 0);
       enemy.setVelocityX(0);
@@ -139,7 +213,8 @@ export function updateCombat(scene) {
       });
       return;
     }
-    // Patrol within the continuous surface beneath this enemy, up to 90px per side.
+    if (scene.currentLevel >= 5) { roamEnemy(scene, enemy, now); return; }
+    // Earlier levels patrol within their continuous surface, up to 90px per side.
     if (enemy.body.blocked.down) {
       const row = Math.floor((enemy.body.bottom + 2) / scene.map.tileHeight);
       const col = Math.floor(enemy.body.center.x / scene.map.tileWidth);

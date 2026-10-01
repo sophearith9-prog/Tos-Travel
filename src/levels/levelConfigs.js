@@ -90,3 +90,16 @@ export const LEVEL_CONFIGS = {
 PROVINCE_ROUTE.forEach((province, index) => {
   LEVEL_CONFIGS[index + 4] = createProvinceLevel(province, index);
 });
+
+// Spread the requested rock throwers across each stage; retain gold and green enemies.
+for (const [level, blackCount] of [[3, 1], [4, 2], [5, 3]]) {
+  const enemies = LEVEL_CONFIGS[level].enemies;
+  enemies.forEach((enemy, index) => { enemy.variant = index % 2 === 0 ? 0 : 2; });
+  for (let i = 0; i < blackCount; i++) {
+    enemies[Math.floor((i + 0.5) * enemies.length / blackCount)].variant = 1;
+  }
+  let otherIndex = 0;
+  enemies.forEach(enemy => {
+    if (enemy.variant !== 1) enemy.variant = otherIndex++ % 2 === 0 ? 2 : 0;
+  });
+}

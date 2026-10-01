@@ -199,7 +199,7 @@ export class GameScene extends Phaser.Scene {
           enemy.setScale(scale).setOrigin(0.5, 1 - 9 / 28);
           enemy.body.setSize(14 / scale, 14 / scale)
             .setOffset((96 - 14 / scale) / 2, 96 - 14 / scale);
-          setupEnemy(this, enemy, index);
+          setupEnemy(this, enemy, index, pos.variant);
         } else {
           enemy.play('enemy-walk');
           enemy.body.setSize(14, 14).setOffset(2, 4);
