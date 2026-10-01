@@ -13,10 +13,14 @@ export function installMobileControls(game) {
     if (!game.canvas) return;
     const canvas = game.canvas.getBoundingClientRect();
     const container = controls.parentElement.getBoundingClientRect();
-    const scale = canvas.width / 800;
+    // Keep touch targets in screen pixels so small phones do not shrink them.
+    const size = Math.max(52, Math.min(76, (canvas.width - 52) / 4));
+    const height = size + 8;
     controls.style.setProperty('--controls-left', `${canvas.left - container.left}px`);
-    controls.style.setProperty('--controls-top', `${canvas.top - container.top + canvas.height - 90 * scale}px`);
-    controls.style.setProperty('--controls-scale', String(scale));
+    controls.style.setProperty('--controls-top', `${canvas.top - container.top + canvas.height - height}px`);
+    controls.style.setProperty('--controls-width', `${canvas.width}px`);
+    controls.style.setProperty('--controls-height', `${height}px`);
+    controls.style.setProperty('--controls-size', `${size}px`);
   };
   game.scale.on('resize', alignControls);
   const resizeObserver = new ResizeObserver(alignControls);

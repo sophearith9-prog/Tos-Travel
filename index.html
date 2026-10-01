@@ -24,12 +24,12 @@
     .machine { padding: 10px; border: 1px solid #3a4d62; border-radius: 23px; background: linear-gradient(140deg, #304359, #142237 55%); box-shadow: 0 28px 70px #0007, inset 0 1px #ffffff15; }
     #game-container { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; background: #0c182b; }
     #game-container canvas { display: block; }
-    .touch-controls { display: none; position: absolute; z-index: 2; left: var(--controls-left, 0px); top: var(--controls-top, 0px); width: 800px; height: 90px; transform: scale(var(--controls-scale, 1)); transform-origin: top left; align-items: center; justify-content: space-between; gap: 10px; padding: 0 24px; pointer-events: none; user-select: none; -webkit-user-select: none; }
+    .touch-controls { display: none; position: absolute; z-index: 2; left: var(--controls-left, 0px); top: var(--controls-top, 0px); width: var(--controls-width, 100%); height: var(--controls-height, 76px); align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; pointer-events: none; user-select: none; -webkit-user-select: none; }
     .is-mobile-device .touch-controls.is-playable { display: flex; }
-    .touch-move { display: flex; gap: 10px; }
-    .touch-controls button { pointer-events: auto; min-width: 52px; width: 64px; height: 60px; border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50e6; color: #e5f7f4; font: bold 24px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
-    .touch-controls .touch-jump { min-width: 76px; background: #ffcf70; border-color: #b4873f; color: #142238; font-size: 16px; }
-    .touch-controls .touch-pause { min-width: 48px; height: 48px; font-size: 18px; }
+    .touch-move { display: flex; gap: 8px; }
+    .touch-controls button { pointer-events: auto; flex-shrink: 0; min-width: 52px; width: var(--controls-size, 76px); height: var(--controls-size, 76px); border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50e6; color: #e5f7f4; font: bold 32px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
+    .touch-controls .touch-jump { min-width: 64px; width: calc(var(--controls-size, 76px) + 12px); background: #ffcf70; border-color: #b4873f; color: #142238; font-size: 18px; }
+    .touch-controls .touch-pause { min-width: 52px; font-size: 24px; }
     .touch-controls button.is-held, .touch-controls button:active:not(:disabled) { background: #87d7ca; color: #142238; transform: translateY(2px); border-bottom-width: 2px; }
     .touch-controls button:disabled { opacity: 0.35; cursor: default; }
     .touch-controls button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
