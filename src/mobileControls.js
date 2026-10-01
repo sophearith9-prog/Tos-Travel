@@ -40,13 +40,6 @@ export function installMobileControls(game) {
   const reset = () => { held.clear(); refresh(); };
   for (const button of buttons) {
     const action = button.dataset.action;
-    if (action === 'pause') {
-      button.addEventListener('click', () => {
-        if (playable()) game.scene.getScene('GameScene').pauseGame();
-        reset();
-      });
-      continue;
-    }
     button.addEventListener('pointerdown', event => {
       if (!playable() || event.button !== 0) return;
       event.preventDefault();
