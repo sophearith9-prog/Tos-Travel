@@ -34,6 +34,7 @@ export class GameScene extends Phaser.Scene {
     this.arrows = Math.max(0, Number(data.arrows) || 0);
     this.arrowText = null;
     this.shootKey = null;
+    this.sprintKey = null;
   }
 
   preload() {
@@ -247,6 +248,7 @@ export class GameScene extends Phaser.Scene {
     // Controls
     if (this.input.keyboard) {
       this.cursors = this.input.keyboard.createCursorKeys();
+      this.sprintKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
       this.wasd = this.input.keyboard.addKeys({
         up: Phaser.Input.Keyboard.KeyCodes.W,
         left: Phaser.Input.Keyboard.KeyCodes.A,
@@ -263,6 +265,12 @@ export class GameScene extends Phaser.Scene {
     this.showLevelIntroBanner(config.title);
     installCombat(this);
     installFinalBoss(this);
+    if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
+      this.screenText(18, 110, 'HOLD SHIFT + MOVE: SPRINT', {
+        fontSize: '12px', fontStyle: 'bold', color: '#87d7ca',
+        stroke: '#17271f', strokeThickness: 3
+      }).setDepth(210);
+    }
 
     // BGM
     if (!this.sound.get('bgm')) {
@@ -857,15 +865,16 @@ export class GameScene extends Phaser.Scene {
     const left = touchControls.left || (this.cursors && (this.cursors.left.isDown || (this.wasd && this.wasd.left.isDown)));
     const right = touchControls.right || (this.cursors && (this.cursors.right.isDown || (this.wasd && this.wasd.right.isDown)));
     const jump = touchControls.jump || (this.cursors && (this.cursors.up.isDown || (this.wasd && (this.wasd.up.isDown || this.wasd.space.isDown))));
+    const moveSpeed = this.currentLevel === TOTAL_LEVELS && this.sprintKey?.isDown ? 230 : 150;
 
     if (left) {
-      this.player.setVelocityX(-150);
+      this.player.setVelocityX(-moveSpeed);
       this.player.setFlipX(true);
       if (this.player.body.blocked.down) {
         this.player.play('player-walk', true);
       }
     } else if (right) {
-      this.player.setVelocityX(150);
+      this.player.setVelocityX(moveSpeed);
       this.player.setFlipX(false);
       if (this.player.body.blocked.down) {
         this.player.play('player-walk', true);
