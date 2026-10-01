@@ -1,3 +1,4 @@
+import { installFullscreen } from './fullscreen.js';
 import { MainMenuScene } from './scenes/MainMenuScene.js';
 import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
@@ -31,3 +32,5 @@ const config = {
 
 export const game = new Phaser.Game(config);
 installMobileControls(game);
+
+installFullscreen(game);

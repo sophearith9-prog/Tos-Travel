@@ -42,6 +42,13 @@
     .tip strong { color: #ffcf70; font-weight: normal; }
     footer { border-top: 1px solid #28384a; padding-top: 17px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; color: #647e96; font-size: 10px; letter-spacing: 1px; }
     @media (max-width: 640px) { .arcade { width: calc(100% - 24px); padding-top: 18px; } header { margin-bottom: 25px; } .edition, .badge { display: none; } .guide { flex-direction: column; gap: 12px; } .tip { text-align: left; } .machine { padding: 5px; border-radius: 16px; } footer { letter-spacing: 0; } }
+    .game-toolbar { display: flex; justify-content: flex-end; padding-bottom: 8px; }
+    #fullscreen-button { min-height: 44px; padding: 8px 14px; border: 1px solid #658292; border-radius: 10px; background: #243d50; color: #eef3fa; font: bold 13px 'Trebuchet MS', sans-serif; cursor: pointer; touch-action: manipulation; }
+    #fullscreen-button:focus-visible { outline: 3px solid #ffcf70; outline-offset: 2px; }
+    body.game-expanded { overflow: hidden; }
+    .machine.is-fullscreen { position: fixed; inset: 0; z-index: 1000; width: 100%; height: 100%; height: 100dvh; border: 0; border-radius: 0; display: flex; flex-direction: column; padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #0b1423; }
+    .machine.is-fullscreen .game-toolbar, .machine.is-fullscreen .touch-controls { flex-shrink: 0; }
+    .machine.is-fullscreen #game-container { flex: 1; min-height: 0; aspect-ratio: auto; border-radius: 0; }
   </style>
 </head>
 <body>
@@ -52,6 +59,7 @@
       <span class="badge">Ready to play</span>
     </section>
     <div class="machine">
+      <div class="game-toolbar"><button type="button" id="fullscreen-button" aria-pressed="false">? Fullscreen</button></div>
       <div id="game-container" role="region" aria-label="Angkor Adventure game. Use the touch buttons, or arrow keys and Space, to move and jump."></div>
       <div class="touch-controls" role="group" aria-label="Touch game controls">
         <div class="touch-move">
