@@ -1,11 +1,13 @@
 export function prepareEnemySkin(scene) {
   if (scene.textures.exists('enemy-guardians') || !scene.textures.exists('enemy-source')) return;
   const source = scene.textures.get('enemy-source').getSourceImage();
-  const texture = scene.textures.createCanvas('enemy-guardians', 96 * 3, 96);
+  const texture = scene.textures.createCanvas('enemy-guardians', 96 * 18, 96);
   texture.context.imageSmoothingEnabled = false;
-  const crops = Array.from({ length: 3 }, (_, frame) => {
-    const x = Math.floor(frame * source.width / 3);
-    return [x, 0, Math.floor((frame + 1) * source.width / 3) - x, source.height];
+  const crops = Array.from({ length: 18 }, (_, frame) => {
+    const column = frame % 6, row = Math.floor(frame / 6);
+    const x = Math.floor(column * source.width / 6), y = Math.floor(row * source.height / 3);
+    return [x, y, Math.floor((column + 1) * source.width / 6) - x,
+      Math.floor((row + 1) * source.height / 3) - y];
   });
   crops.forEach(([x, y, w, h], frame) => {
     const canvas = document.createElement('canvas');

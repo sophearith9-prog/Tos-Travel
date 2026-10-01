@@ -1,5 +1,7 @@
 ﻿import { button, label } from '../ui.js';
 
+import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
+
 export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
 
@@ -19,12 +21,12 @@ export class MainMenuScene extends Phaser.Scene {
       }
     }
     label(this, 166, 53, 'THE LITTLE ARCADE / CAMBODIA', 11, '#d3ad78');
-    label(this, 698, 53, '10 STAGES', 11, '#e6c58e');
+    label(this, 698, 53, `${TOTAL_LEVELS} STAGES`, 11, '#e6c58e');
     this.add.text(52, 100, 'Angkor\nAdventure', {
       fontFamily: 'Georgia, serif', fontSize: '49px',
       fontStyle: 'bold', color: '#fff0d1', lineSpacing: -5
     });
-    this.add.text(55, 222, 'A little courage. A journey to Angkor.\nFind hidden treasures. Reach the temple.', {
+    this.add.text(55, 222, 'A little courage. A journey across Cambodia.\n24 provinces and capital. Find hidden treasures.', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '15px',
       color: '#c8b399', lineSpacing: 7
     });

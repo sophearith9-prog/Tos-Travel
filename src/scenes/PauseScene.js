@@ -1,5 +1,7 @@
 import { panel, label, button } from '../ui.js';
 
+import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
+
 export class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
 
@@ -8,7 +10,7 @@ export class PauseScene extends Phaser.Scene {
     const game = this.scene.get('GameScene');
     panel(this, 210, 32, 380, 386);
     label(this, 400, 73, 'GAME PAUSED', 30, '#ffcf70');
-    label(this, 400, 110, 'LEVEL ' + game.currentLevel + ' / 10', 13, '#a5b6cd');
+    label(this, 400, 110, 'LEVEL ' + game.currentLevel + ' / ' + TOTAL_LEVELS, 13, '#a5b6cd');
     let resumed = false;
     const resume = () => {
       if (resumed) return;

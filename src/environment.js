@@ -133,7 +133,7 @@ function createLotusFlower(scene) {
 export function addEnvironment(scene, map) {
   // Level 2 uses a realistic temple photo for its scenery instead of the
   // generic pixel-art plants and clouds used by the other levels.
-  if (scene.currentLevel === 2 || scene.currentLevel === 3) return;
+  if (scene.currentLevel >= 2) return;
   if (!scene.textures.exists('environment-tree')) return;
   const groundY = 11 * map.tileHeight;
   const scenery = (key, x, y, height, depth = -2) => {

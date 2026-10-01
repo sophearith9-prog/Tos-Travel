@@ -1,4 +1,5 @@
 import { backdrop, button, playSound } from '../ui.js';
+import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 
 export class VictoryScene extends Phaser.Scene {
   constructor() {
@@ -53,7 +54,7 @@ export class VictoryScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     text(400, 140, 'YOU WIN!', 42, '#ffd166');
-    text(400, 180, 'Angkor Wat reached. Adventure complete!', 17, '#cbd5e1');
+    text(400, 180, `Cambodia explored. All ${TOTAL_LEVELS} stages complete!`, 17, '#cbd5e1');
 
     const stats = this.add.graphics();
     stats.fillStyle(0x0b1228);

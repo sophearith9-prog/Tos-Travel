@@ -1,0 +1,11 @@
+﻿<!doctype html><div id="game-container" style="width:800px;height:450px"></div><pre id="result">waiting</pre><script src="phaser.min.js"></script><script type="module">
+import {game} from './src/main.js';
+const output=document.querySelector('#result'), results=[];
+window.addEventListener('error',e=>output.textContent='FAIL '+e.message);
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loaded(level){game.scene.start('GameScene',{level,lives:3});for(let i=0;i<100;i++){await wait(50);const s=game.scene.getScene('GameScene');if(s.scene.isActive()&&s.currentLevel===level&&s.player?.active&&s.map)return s;}throw Error('load '+level);}
+await wait(300);
+for(const level of [1,2,3]){const s=await loaded(level);results.push('Intro '+level+' loaded');}
+let s=await loaded(10);s.reachGoal(s.player);await wait(3000);s=game.scene.getScene('GameScene');if(s.currentLevel!==11||!s.scene.isActive())throw Error('10 to 11 failed');results.push('10 advances to 11');
+s=await loaded(28);s.reachGoal(s.player);await wait(3000);if(!game.scene.isActive('VictoryScene'))throw Error('Final victory failed');results.push('28 opens victory');output.textContent='PASS '+results.join('; ');
+</script>

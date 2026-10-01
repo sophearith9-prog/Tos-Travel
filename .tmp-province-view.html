@@ -1,0 +1,3 @@
+<!doctype html><div id="game-container" style="width:800px;height:450px"></div><pre id="result">waiting</pre><script src="phaser.min.js"></script><script type="module">
+import {game} from './src/main.js';window.addEventListener('error',e=>document.querySelector('#result').textContent='FAIL '+e.message);const query=new URLSearchParams(location.search);const level=Number(query.get('level'));setTimeout(()=>{if(level)game.scene.start('GameScene',{level});else game.scene.start('LevelSelectScene',{page:0});},300);setTimeout(()=>document.querySelector('#result').textContent=level?'Province scenery loaded':'Route selector loaded',2200);
+</script>

@@ -27,6 +27,9 @@
     .touch-controls { display: none; position: absolute; z-index: 2; left: var(--controls-left, 0px); top: var(--controls-top, 0px); width: var(--controls-width, 100%); height: var(--controls-height, 76px); align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; pointer-events: none; user-select: none; -webkit-user-select: none; }
     .is-mobile-device .touch-controls.is-playable { display: flex; }
     .touch-move { display: flex; gap: 8px; }
+    .touch-actions { display: flex; gap: 8px; }
+    .touch-controls button[hidden] { display: none; }
+    .touch-controls .touch-shoot { background: #87d7ca; color: #142238; font-size: 14px; }
     .touch-controls button { pointer-events: auto; flex-shrink: 0; min-width: 52px; width: var(--controls-size, 76px); height: var(--controls-size, 76px); border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50e6; color: #e5f7f4; font: bold 32px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
     .touch-controls .touch-jump { min-width: 64px; width: calc(var(--controls-size, 76px) + 12px); background: #ffcf70; border-color: #b4873f; color: #142238; font-size: 18px; }
     .touch-controls button.is-held, .touch-controls button:active:not(:disabled) { background: #87d7ca; color: #142238; transform: translateY(2px); border-bottom-width: 2px; }
@@ -56,7 +59,7 @@
   <main class="arcade">
     <header><div class="brand"><span class="mark" aria-hidden="true">+</span> THE LITTLE ARCADE</div><span class="edition">SMALL GAMES. BIG ADVENTURES.</span></header>
     <section class="intro" aria-label="About the game">
-      <div><p class="eyebrow">PLATFORMER / 10 LEVELS / ENDLESS RETRIES</p><h1>Angkor Adventure</h1><p class="subtitle">A little courage. A perfect jump. One more level.</p></div>
+      <div><p class="eyebrow">PLATFORMER / 28 LEVELS / CAMBODIA JOURNEY</p><h1>Angkor Adventure</h1><p class="subtitle">Ancient temples. Coastlines. Forests. Explore Cambodia.</p></div>
       <span class="badge">Ready to play</span>
     </section>
     <div class="machine">
@@ -67,14 +70,17 @@
           <button type="button" data-action="left" aria-label="Move left" disabled>&larr;</button>
           <button type="button" data-action="right" aria-label="Move right" disabled>&rarr;</button>
         </div>
-        <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
+        <div class="touch-actions">
+          <button type="button" class="touch-shoot" data-action="shoot" aria-label="Shoot bow" hidden disabled>SHOOT</button>
+          <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
+        </div>
       </div>
       </div>
     </div>
     <section class="guide" aria-label="Controls and objective">
-      <div class="keys"><kbd>W A S D</kbd><span>or</span><kbd>&larr; &uarr; &rarr;</kbd><span>Move</span><kbd>SPACE</kbd><span>Jump</span></div>
-      <p class="touch-tip">Hold an arrow to move. Tap JUMP with your other thumb.<br>Turn your phone sideways for a bigger view.</p>
-      <p class="tip">Follow the coins. <strong>Reach the golden flag.</strong><br>Finish level 10 to claim your victory.</p>
+      <div class="keys"><kbd>W A S D</kbd><span>or</span><kbd>&larr; &uarr; &rarr;</kbd><span>Move</span><kbd>SPACE</kbd><span>Jump</span><kbd>F</kbd><span>Shoot (level 4+)</span></div>
+      <p class="touch-tip">Hold an arrow to move. Tap JUMP with your other thumb.<br>Level 4+: hit ? boxes for arrows, then tap SHOOT.</p>
+      <p class="tip">Follow the coins. <strong>Reach the golden flag.</strong><br>Explore 24 provinces and the capital. Complete all 28 stages.</p>
     </section>
     <footer><span>BUILT FOR THE JOY OF PLAY</span><span>Touch &amp; keyboard controls</span></footer>
   </main>
