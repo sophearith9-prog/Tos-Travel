@@ -171,9 +171,8 @@ export function updateCombat(scene) {
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);
     if (now < enemy.attackUntil) { enemy.setVelocityX(0); return; }
-    if (enemy.guardianVariant === 2 && scene.currentLevel >= 3 && Math.abs(dx) < 360 && dy < 120) {
-      enemy.patrolDirection = dx >= 0 ? 1 : -1;
-      if (Math.abs(dx) < 28 && dy < 24 && enemy.body.blocked.down && now >= enemy.nextAttack) {
+    const canFight = scene.currentLevel <= 2 || enemy.guardianVariant === 2;
+    if (canFight && Math.abs(dx) < 28 && dy < 24 && enemy.body.blocked.down && now >= enemy.nextAttack) {
         enemy.setVelocityX(0);
         enemy.setFlipX(dx > 0);
         enemy.attackUntil = now + 650;
@@ -186,7 +185,11 @@ export function updateCombat(scene) {
             scene.handlePlayerEnemyCollision(scene.player, enemy, true);
           }
         });
-      } else if (scene.currentLevel >= 5) {
+      return;
+    }
+    if (enemy.guardianVariant === 2 && scene.currentLevel >= 3 && Math.abs(dx) < 360 && dy < 120) {
+      enemy.patrolDirection = dx >= 0 ? 1 : -1;
+      if (scene.currentLevel >= 5) {
         roamEnemy(scene, enemy, now, scene.enemySpeed * 1.6);
       } else {
         // Chase on foot in early levels, stopping at walls and ledges.
