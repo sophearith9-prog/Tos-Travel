@@ -8,6 +8,14 @@ export function addFinishTemple(scene, map) {
       tile.setCollision(false, false, false, false);
     }
   });
+  // Level 2 finishes at the flag, without a temple or the original castle tiles.
+  if (scene.currentLevel === 2) return;
+  if (scene.currentLevel === 3) {
+    scene.textures.get('angkor-thom-finish-gate').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.add.image(center, ground, 'angkor-thom-finish-gate')
+      .setOrigin(0.5, 1).setDisplaySize(102, 74.4).setDepth(-1);
+    return;
+  }
   if (scene.currentLevel === 1 && scene.textures.exists('angkor-wat-finish')) {
     scene.textures.get('angkor-wat-finish').setFilter(Phaser.Textures.FilterMode.LINEAR);
     const temple = scene.add.image(center, ground, 'angkor-wat-finish')

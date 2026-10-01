@@ -48,9 +48,16 @@ export class GameScene extends Phaser.Scene {
       this.load.image('temple-part-source', 'assets/templepart.png');
       this.load.image('temple-decoration-tiles', 'assets/templepart_.png');
       this.load.text('tiles-definition', 'assets/tiles.tsx');
+      this.load.image('temple-items-tiles', 'assets/temple_items.png');
+      this.load.text('temple_items-definition', 'assets/temple_items.tsx');
+    }
+    if (this.currentLevel === 3) {
+      this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
+      this.load.image('angkor-thom-finish-gate', 'assets/angkor-thom-finish-gate.png');
+      this.load.image('temple-part-source', 'assets/templepart.png');
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
-    this.load.image('enemy-source', 'assets/anemy.jpg');
+    this.load.image('enemy-source', 'assets/khmer-temple-guardians.png');
     this.load.spritesheet('packed', 'assets/tilemap_packed.png', {
       frameWidth: 18,
       frameHeight: 18
@@ -96,17 +103,21 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 1) addCambodiaJourney(this, map);
     if (this.currentLevel === 2) addAngkorWatBackdrop(this, map);
 
-    const groundTiles = this.currentLevel === 2
+    const groundTiles = this.currentLevel === 2 || this.currentLevel === 3
       ? prepareAngkorGround(this)
       : prepareEnvironment(this);
     const tileImages = {
       tilemap_packed: groundTiles,
-      tiles: 'temple-decoration-tiles'
+      tiles: 'temple-decoration-tiles',
+      temple_items: 'temple-items-tiles'
     };
     const tilesets = map.tilesets.map(tileset => {
       const image = tileImages[tileset.name];
       if (!image) throw new Error(`Unknown tileset image: ${tileset.name}`);
-      return map.addTilesetImage(tileset.name, image, tileset.tileWidth, tileset.tileHeight);
+      if (!this.textures.exists(image)) return null;
+      // Tiled can reference the same named tileset at multiple firstgid values.
+      // Attach to this instance; name lookup would always select the first one.
+      return tileset.setImage(this.textures.get(image));
     });
     if (tilesets.some(tileset => !tileset)) {
       throw new Error('A level uses a tileset without a loaded image.');
@@ -115,6 +126,7 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer = map.createLayer('Platforms', tilesets, 0, 0);
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
+      if (this.currentLevel === 3) this.groundLayer.setTint(0x82958b);
     }
     addEnvironment(this, map);
     addFinishTemple(this, map);
@@ -162,9 +174,9 @@ export class GameScene extends Phaser.Scene {
     this.enemySpeed = config.enemySpeed || 40;
     if (config.enemies) {
       config.enemies.forEach((pos, index) => {
-        const customEnemy = this.textures.exists('enemy-crabs');
+        const customEnemy = this.textures.exists('enemy-guardians');
         const enemy = customEnemy
-          ? this.enemies.create(pos.x, pos.y, 'enemy-crabs', index % 3)
+          ? this.enemies.create(pos.x, pos.y, 'enemy-guardians', index % 3)
           : this.enemies.create(pos.x, pos.y, 'packed', 22);
         enemy.setBounce(0);
         enemy.setCollideWorldBounds(true);
@@ -204,6 +216,14 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
     this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
+    if (this.currentLevel === 3) {
+      const zoom = this.cameras.main.zoom;
+      this.textures.get('angkor-sunset-level3').setFilter(Phaser.Textures.FilterMode.NEAREST);
+      // Keep the full sunset composition visible as the level scrolls.
+      this.add.image(400, 225, 'angkor-sunset-level3')
+        .setDisplaySize(800 / zoom, 450 / zoom)
+        .setScrollFactor(0).setDepth(-20);
+    }
 
     // Controls
     if (this.input.keyboard) {
@@ -437,7 +457,7 @@ export class GameScene extends Phaser.Scene {
     }
     for (const block of this.coinBlocks.values()) {
       block.tile.alpha = 0;
-      const key = this.currentLevel === 2
+      const key = this.currentLevel === 2 || this.currentLevel === 3
         ? (block.coins || block.extraLife ? 'temple-coin-block' : 'temple-used-block')
         : (block.coins || block.extraLife) && this.textures.exists('environment-block')
         ? 'environment-block' : 'used-coin-block';
@@ -455,7 +475,7 @@ export class GameScene extends Phaser.Scene {
     block.nextHit = this.time.now + 250;
     if (block.extraLife) {
       block.extraLife = false;
-      if (!block.coins) block.image.setTexture(this.currentLevel === 2 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
+      if (!block.coins) block.image.setTexture((this.currentLevel === 2 || this.currentLevel === 3) ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
       const food = this.lifeItems.create(tile.pixelX + 9, tile.pixelY + 9, 'extra-life-food')
         .setDisplaySize(25, 25).setDepth(10);
       const nameplate = this.add.container(food.x, food.y + 18).setDepth(11);
@@ -485,7 +505,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     block.coins--;
-    if (!block.coins) block.image.setTexture(this.currentLevel === 2 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
+    if (!block.coins) block.image.setTexture((this.currentLevel === 2 || this.currentLevel === 3) ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
     playSound(this, 'coin', { volume: 0.4 });
     this.score += 100;
     this.coins++;
@@ -626,6 +646,12 @@ export class GameScene extends Phaser.Scene {
       duration: 600,
       ease: 'Linear',
       onComplete: () => {
+        if (this.currentLevel === 2) {
+          this.isSlidingDownFlag = false;
+          player.play('player-idle', true);
+          this.triggerCastleFireworks();
+          return;
+        }
         // Step 2: Walk toward the victory castle
         this.isSlidingDownFlag = false;
         player.setFlipX(false);
@@ -649,10 +675,10 @@ export class GameScene extends Phaser.Scene {
   triggerCastleFireworks() {
     this.isEnteringCastle = false;
     this.player.setVelocity(0, 0);
-    this.player.setVisible(false); // Player entered castle!
+    if (this.currentLevel !== 2) this.player.setVisible(false);
 
     // Spawn 4 celebration fireworks above the castle
-    const castleCenter = (this.map.width - 7) * 18 + 9;
+    const castleCenter = this.currentLevel === 2 ? this.flagX : (this.map.width - 7) * 18 + 9;
     const colors = ['#ffd700', '#ff3366', '#33ccff', '#33ff66'];
 
     for (let f = 0; f < 4; f++) {
@@ -665,7 +691,7 @@ export class GameScene extends Phaser.Scene {
 
     // Display Finish Clear Banner
     this.time.delayedCall(400, () => {
-      const banner = this.screenText(400, 160, '★ LEVEL ' + this.currentLevel + ' COMPLETE! ★', {
+      const banner = this.screenText(400, 160, 'â˜… LEVEL ' + this.currentLevel + ' COMPLETE! â˜…', {
         fontSize: '24px',
         color: '#ffd700',
         fontStyle: 'bold',
