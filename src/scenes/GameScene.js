@@ -13,7 +13,7 @@ import { installCombat, setupEnemy, updateCombat, grantBoxArrows } from '../comb
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
-import { installFinalBoss, damageBoss } from '../finalBoss.js';
+import { installFinalBoss } from '../finalBoss.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -639,7 +639,8 @@ export class GameScene extends Phaser.Scene {
     if (!forceDamage && isFalling && isAbove) {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
-      if (enemy.isBoss) { damageBoss(this, enemy); return; }
+      // The final guardian requires arrow hits; stomping only bounces the player.
+      if (enemy.isBoss) return;
       this.score += 200;
       this.updateHUD();
       this.showFloatingText(enemy.x, enemy.y - 8, '+200', '#4ade80');

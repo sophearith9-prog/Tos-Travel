@@ -12,21 +12,47 @@ export function installFinalBoss(scene) {
   boss.setCollideWorldBounds(true).setDepth(13);
   boss.isBoss = true;
   boss.guardianVariant = 1;
-  boss.health = boss.maxHealth = 12;
+  boss.health = boss.maxHealth = 30;
   boss.nextShot = scene.time.now + 2000;
+  boss.nextArrowDrop = scene.time.now + 20000;
   boss.nextJump = 0;
   boss.awake = false;
   boss.play('guardian-walk-1');
   scene.boss = boss;
-  scene.bossHealthText = scene.screenText(400, 150, 'FINAL GUARDIAN: 12 / 12', {
+  scene.bossHealthText = scene.screenText(400, 150, 'FINAL GUARDIAN: 30 / 30', {
     fontSize: '13px', fontStyle: 'bold', color: '#ffb4a9',
     stroke: '#17271f', strokeThickness: 3
   }).setOrigin(0.5).setDepth(211);
   scene.bossHealthBar = scene.add.graphics().setScrollFactor(0).setDepth(211);
+  scene.bossArrowDrops = scene.physics.add.group({ allowGravity: false });
+  scene.physics.add.overlap(scene.player, scene.bossArrowDrops, (player, pickup) => {
+    if (!pickup.active || scene.isLevelFinished) return;
+    pickup.destroy();
+    scene.arrows += 5;
+    scene.updateHUD();
+    scene.showFloatingText(player.x, player.y - 20, '+5 ARROWS', '#87d7ca');
+  });
   drawBossHealth(scene);
-  // Enough ammunition to fight even when entering the final stage directly.
+  // Starting ammunition, replenished by the guardian's timed drops.
   scene.arrows = Math.max(scene.arrows, 18);
   scene.updateHUD();
+}
+
+export function dropBossArrows(scene, boss) {
+  const direction = scene.player.x < boss.x ? -1 : 1;
+  const start = Math.max(1, Math.min(scene.map.width - 2, Math.floor((boss.x + direction * 80) / 18)));
+  let column = start;
+  for (let offset = 0; offset < scene.map.width; offset++) {
+    const candidate = start + direction * offset;
+    if (candidate < 1 || candidate >= scene.map.width - 1) break;
+    if (scene.groundLayer.getTileAt(candidate, 11)?.collides &&
+        !scene.groundLayer.getTileAt(candidate, 10)?.collides) { column = candidate; break; }
+  }
+  const pickup = scene.bossArrowDrops.create(column * 18 + 9, 180, 'bow-arrow');
+  pickup.setDisplaySize(30, 12).setTint(0xffd166).setDepth(15);
+  pickup.body.setSize(24, 12).setOffset(0, -2);
+  scene.showFloatingText(pickup.x, pickup.y - 14, '5 ARROWS', '#ffd166');
+  return pickup;
 }
 
 function drawBossHealth(scene) {
@@ -57,6 +83,11 @@ export function damageBoss(scene, boss) {
 }
 
 export function updateFinalBoss(scene, boss, now) {
+  if (!boss.active || boss.health <= 0 || scene.isLevelFinished) return;
+  if (now >= boss.nextArrowDrop) {
+    boss.nextArrowDrop = now + 20000;
+    dropBossArrows(scene, boss);
+  }
   const body = boss.body, player = scene.player;
   const dx = player.x - boss.x;
   if (Math.abs(dx) < 480) boss.awake = true;
@@ -85,11 +116,13 @@ export function updateFinalBoss(scene, boss, now) {
     boss.nextShot = now + 2000;
     boss.shootUntil = now + 450;
     boss.play('guardian-attack-1', true);
-    const rock = scene.rockProjectiles.create(body.center.x + direction * (body.width / 2 + 12),
-      body.center.y, 'guardian-rock').setDisplaySize(16, 16).setDepth(14);
-    const flight = Math.max(0.35, Math.min(1.2, Math.abs(player.x - rock.x) / 260));
-    rock.setVelocity((player.body.center.x + player.body.velocity.x * flight * 0.5 - rock.x) / flight,
-      (player.body.center.y - rock.y - 0.5 * scene.physics.world.gravity.y * flight * flight) / flight);
-    scene.time.delayedCall(2500, () => { if (rock.active) rock.destroy(); });
+    for (const offset of [-10, 10]) {
+      const rock = scene.rockProjectiles.create(body.center.x + direction * (body.width / 2 + 12),
+        body.center.y + offset, 'guardian-rock').setDisplaySize(16, 16).setDepth(14);
+      const flight = Math.max(0.35, Math.min(1.2, Math.abs(player.x - rock.x) / 260));
+      rock.setVelocity((player.body.center.x + player.body.velocity.x * flight * 0.5 - rock.x) / flight,
+        (player.body.center.y + offset - rock.y - 0.5 * scene.physics.world.gravity.y * flight * flight) / flight);
+      scene.time.delayedCall(2500, () => { if (rock.active) rock.destroy(); });
+    }
   } else if (now >= (boss.shootUntil || 0)) boss.play('guardian-walk-1', true);
 }
