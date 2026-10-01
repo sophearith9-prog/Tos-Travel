@@ -1,0 +1,5 @@
+2026/10/01-17:35:06.411 2e54 Creating DB E:\Learning\Game\my-mario-game\.checks\mobile-final\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/10/01-17:35:06.434 2e54 Reusing MANIFEST E:\Learning\Game\my-mario-game\.checks\mobile-final\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/10/01-17:35:07.068 551c Level-0 table #5: started
+2026/10/01-17:35:07.088 551c Level-0 table #5: 683273 bytes OK
+2026/10/01-17:35:07.101 551c Delete type=0 #3

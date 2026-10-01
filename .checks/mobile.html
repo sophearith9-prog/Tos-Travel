@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head><base href="/"><style>body{width:390px}#test-result{white-space:pre-wrap}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1423">
+  <title>Angkor Adventure | The Little Arcade</title>
+<script src="./phaser.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; color: #eef3fa; background: radial-gradient(ellipse at 50% 30%, #203c4d 0%, #111f32 42%, #090f1c 85%); font-family: 'Trebuchet MS', Arial, sans-serif; }
+    .arcade { width: min(1060px, calc(100% - 48px)); margin: 0 auto; padding: 34px 0 24px; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: bold; letter-spacing: 2px; font-size: 12px; }
+    .mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: #ffcf70; color: #142238; font-size: 21px; box-shadow: 0 4px 20px #ffcf701a; }
+    .edition { color: #8ba4b8; font-size: 11px; letter-spacing: 1.5px; }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { color: #87d7ca; font-size: 10px; font-weight: bold; letter-spacing: 2px; margin: 0 0 10px; }
+    h1 { font-size: clamp(24px, 3.5vw, 36px); letter-spacing: -1.2px; margin: 0; }
+    .subtitle { color: #93a9bf; margin: 10px 0 0; font-size: 14px; }
+    .badge { flex-shrink: 0; border: 1px solid #365248; border-radius: 20px; padding: 9px 13px; color: #9ee1c3; background: #17352d80; font-size: 11px; }
+    .badge::before { content: ''; display: inline-block; width: 6px; height: 6px; background: #8bddac; border-radius: 50%; margin-right: 8px; }
+    .machine { padding: 10px; border: 1px solid #3a4d62; border-radius: 23px; background: linear-gradient(140deg, #304359, #142237 55%); box-shadow: 0 28px 70px #0007, inset 0 1px #ffffff15; }
+    #game-container { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; background: #0c182b; }
+    #game-container canvas { display: block; }
+    .touch-controls { display: none; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 4px 4px; user-select: none; -webkit-user-select: none; }
+    .touch-move { display: flex; gap: 10px; }
+    .touch-controls button { min-width: 52px; width: clamp(52px, 16vw, 64px); height: 60px; border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50; color: #e5f7f4; font: bold 24px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
+    .touch-controls .touch-jump { min-width: 76px; background: #ffcf70; border-color: #b4873f; color: #142238; font-size: 16px; }
+    .touch-controls .touch-pause { min-width: 48px; height: 48px; font-size: 18px; }
+    .touch-controls button.is-held, .touch-controls button:active:not(:disabled) { background: #87d7ca; color: #142238; transform: translateY(2px); border-bottom-width: 2px; }
+    .touch-controls button:disabled { opacity: 0.35; cursor: default; }
+    .touch-controls button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    .touch-tip { display: none; }
+    @media (any-pointer: coarse), (max-width: 900px) { .touch-controls { display: flex; } .touch-tip { display: block; color: #93a9bf; font-size: 12px; } .guide .keys { display: none; } }
+    @media (orientation: landscape) and (max-height: 520px) and (any-pointer: coarse) { main.arcade { width: min(calc(100% - 24px), calc((100svh - 100px) * 16 / 9)); padding: 6px 0; } header, .intro, section.guide, footer { display: none; } .machine { padding: 5px; } .touch-controls { padding-top: 8px; } }
+    .guide { display: flex; justify-content: space-between; gap: 20px; padding: 22px 5px; }
+    .keys { display: flex; align-items: center; gap: 9px; color: #9aafc4; font-size: 12px; flex-wrap: wrap; }
+    kbd { font-family: inherit; font-size: 11px; color: #d9e5f0; border: 1px solid #3b4b60; border-bottom-width: 3px; border-radius: 6px; background: #1a293b; padding: 6px 9px; }
+    .tip { margin: 0; color: #9aafc4; font-size: 12px; line-height: 1.8; text-align: right; }
+    .tip strong { color: #ffcf70; font-weight: normal; }
+    footer { border-top: 1px solid #28384a; padding-top: 17px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; color: #647e96; font-size: 10px; letter-spacing: 1px; }
+    @media (max-width: 640px) { .arcade { width: calc(100% - 24px); padding-top: 18px; } header { margin-bottom: 25px; } .edition, .badge { display: none; } .guide { flex-direction: column; gap: 12px; } .tip { text-align: left; } .machine { padding: 5px; border-radius: 16px; } footer { letter-spacing: 0; } }
+  </style>
+</head>
+<body>
+  <main class="arcade">
+    <header><div class="brand"><span class="mark" aria-hidden="true">+</span> THE LITTLE ARCADE</div><span class="edition">SMALL GAMES. BIG ADVENTURES.</span></header>
+    <section class="intro" aria-label="About the game">
+      <div><p class="eyebrow">PLATFORMER / 10 LEVELS / ENDLESS RETRIES</p><h1>Angkor Adventure</h1><p class="subtitle">A little courage. A perfect jump. One more level.</p></div>
+      <span class="badge">Ready to play</span>
+    </section>
+    <div class="machine">
+      <div id="game-container" role="region" aria-label="Angkor Adventure game. Use the touch buttons, or arrow keys and Space, to move and jump."></div>
+      <div class="touch-controls" role="group" aria-label="Touch game controls">
+        <div class="touch-move">
+          <button type="button" data-action="left" aria-label="Move left" disabled>&larr;</button>
+          <button type="button" data-action="right" aria-label="Move right" disabled>&rarr;</button>
+        </div>
+        <button type="button" class="touch-pause" data-action="pause" aria-label="Pause game" disabled>Ⅱ</button>
+        <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
+      </div>
+    </div>
+    <section class="guide" aria-label="Controls and objective">
+      <div class="keys"><kbd>W A S D</kbd><span>or</span><kbd>&larr; &uarr; &rarr;</kbd><span>Move</span><kbd>SPACE</kbd><span>Jump</span></div>
+      <p class="touch-tip">Hold an arrow to move. Tap JUMP with your other thumb.<br>Turn your phone sideways for a bigger view.</p>
+      <p class="tip">Follow the coins. <strong>Reach the golden flag.</strong><br>Finish level 10 to claim your victory.</p>
+    </section>
+    <footer><span>BUILT FOR THE JOY OF PLAY</span><span>Touch &amp; keyboard controls</span></footer>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+<pre id="test-result"></pre><script type="module">
+import {game} from '/src/main.js';
+import {touchControls} from '/src/mobileControls.js';
+const result=document.querySelector('#test-result');window.onerror=(m)=>result.textContent='ERROR '+m;
+setTimeout(()=>{game.scene.stop('MainMenuScene');game.scene.start('GameScene',{level:2});},500);
+setTimeout(()=>{
+ const s=game.scene.getScene('GameScene'); game.events.emit('poststep');
+ const left=document.querySelector('[data-action=left]'),right=document.querySelector('[data-action=right]'),jump=document.querySelector('[data-action=jump]');
+ // Synthetic pointers have no native capture; exercise the actual control listeners.
+ for(const b of [left,right,jump])b.setPointerCapture=()=>{};
+ const fire=(b,type,id)=>b.dispatchEvent(new PointerEvent(type,{pointerId:id,button:0,bubbles:true}));
+ fire(right,'pointerdown',1);s.update();const movement=s.player.body.velocity.x===150;
+ s.player.body.blocked.down=true;fire(jump,'pointerdown',2);s.update();const simultaneous=touchControls.right&&touchControls.jump&&s.player.body.velocity.x===150&&s.player.body.velocity.y===-350;
+ fire(right,'pointerup',1);const independentRelease=!touchControls.right&&touchControls.jump;
+ fire(jump,'pointercancel',2);const cancellation=!touchControls.jump;
+ fire(left,'pointerdown',3);window.dispatchEvent(new Event('blur'));const blur=!touchControls.left;
+ fire(right,'pointerdown',4);document.querySelector('[data-action=pause]').click();const pause=!touchControls.right;
+ s.scene.resume();game.scene.isProcessing=false;game.scene.processQueue();
+ result.textContent=JSON.stringify({movement,simultaneous,independentRelease,cancellation,blur,pause,visible:getComputedStyle(document.querySelector('.touch-controls')).display,width:document.documentElement.scrollWidth});
+},5000);
+</script></body>
+</html>

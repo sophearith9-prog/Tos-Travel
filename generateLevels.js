@@ -88,6 +88,7 @@ function generateLevelTMJ(levelNum, width = 100) {
     addBlocks(0, width - 26, 1, 48); // ceiling
     addPipe(14, 8);
     addPlatform(20, 3, 8);
+    addBlocks(4, 5, 6);
     addBlocks(26, 5, 6);
     addPipe(34, 7);
     addPlatform(45, 4, 8);

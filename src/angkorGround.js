@@ -11,12 +11,12 @@ export function prepareAngkorGround(scene) {
 
   // These are complete illustrated blocks, not the arbitrary 32px TSX cells.
   const crops = {
-    ledge: [205, 5, 88, 94],
-    vineLedge: [305, 5, 88, 94],
-    stone: [7, 7, 86, 91],
-    cracked: [107, 7, 86, 91],
-    carved: [206, 110, 87, 86],
-    lotus: [405, 7, 87, 91]
+    ledge: [535, 735, 275, 85],
+    vineLedge: [380, 853, 175, 65],
+    stone: [42, 771, 140, 40],
+    cracked: [1240, 751, 110, 58],
+    carved: [778, 582, 140, 87],
+    lotus: [977, 593, 114, 78]
   };
   const replace = (id, crop) => {
     const x = ((id - 1) % 20) * 18;
@@ -37,6 +37,23 @@ export function prepareAngkorGround(scene) {
     const block = scene.textures.createCanvas(name, 18, 18);
     block.context.imageSmoothingEnabled = false;
     block.context.drawImage(artwork, ...crops[crop], 0, 0, 18, 18);
+    // Keep reward boxes legible against the detailed temple backdrop.
+    if (name === 'temple-coin-block') {
+      const ctx = block.context;
+      ctx.fillStyle = '#392510';
+      ctx.fillRect(0, 0, 18, 18);
+      ctx.fillStyle = '#efb94e';
+      ctx.fillRect(1, 1, 16, 16);
+      ctx.fillStyle = '#ffe49a';
+      ctx.fillRect(2, 2, 14, 2);
+      ctx.fillStyle = '#a26725';
+      ctx.fillRect(2, 14, 14, 2);
+      ctx.fillStyle = '#503416';
+      const question = ['111', '001', '011', '010', '000', '010'];
+      question.forEach((row, y) => [...row].forEach((pixel, x) => {
+        if (pixel === '1') ctx.fillRect(6 + x * 2, 3 + y * 2, 2, 2);
+      }));
+    }
     block.refresh();
   }
   return key;

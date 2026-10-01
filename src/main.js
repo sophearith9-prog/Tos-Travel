@@ -4,6 +4,7 @@ import { GameScene } from './scenes/GameScene.js';
 import { GameOverScene } from './scenes/GameOverScene.js';
 import { VictoryScene } from './scenes/VictoryScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
+import { installMobileControls } from './mobileControls.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -29,3 +30,4 @@ const config = {
 };
 
 export const game = new Phaser.Game(config);
+installMobileControls(game);
