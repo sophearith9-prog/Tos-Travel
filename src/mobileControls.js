@@ -3,8 +3,25 @@ export const touchControls = { left: false, right: false, jump: false };
 export function installMobileControls(game) {
   const controls = document.querySelector('.touch-controls');
   if (!controls) return;
+  const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    || navigator.userAgentData?.mobile === true;
+  document.body.classList.toggle('is-mobile-device', isMobileDevice);
   const held = new Map();
   const buttons = [...controls.querySelectorAll('button')];
+  const alignControls = () => {
+    if (!game.canvas) return;
+    const canvas = game.canvas.getBoundingClientRect();
+    const container = controls.parentElement.getBoundingClientRect();
+    const scale = canvas.width / 800;
+    controls.style.setProperty('--controls-left', `${canvas.left - container.left}px`);
+    controls.style.setProperty('--controls-top', `${canvas.top - container.top + canvas.height - 90 * scale}px`);
+    controls.style.setProperty('--controls-scale', String(scale));
+  };
+  game.scale.on('resize', alignControls);
+  const resizeObserver = new ResizeObserver(alignControls);
+  resizeObserver.observe(controls.parentElement);
+  alignControls();
   const playable = () => {
     const scene = game.scene.getScene('GameScene');
     return !!scene && scene.scene.isActive() && !scene.isLevelFinished;
@@ -43,8 +60,6 @@ export function installMobileControls(game) {
   window.addEventListener('pagehide', reset);
   window.addEventListener('orientationchange', reset);
   document.addEventListener('visibilitychange', reset);
-  const media = window.matchMedia('(any-pointer: coarse), (max-width: 900px)');
-  media.addEventListener('change', reset);
   let wasPlayable;
   let watchedScene;
   game.events.on('poststep', () => {
@@ -53,9 +68,11 @@ export function installMobileControls(game) {
       watchedScene = scene;
       for (const event of ['pause', 'shutdown']) scene.events.on(event, reset);
     }
-    const enabled = playable();
+    const enabled = isMobileDevice && playable();
     if (enabled === wasPlayable) return;
     wasPlayable = enabled;
+    controls.classList.toggle('is-playable', enabled);
+    if (enabled) alignControls();
     reset();
     for (const button of buttons) button.disabled = !enabled;
   });

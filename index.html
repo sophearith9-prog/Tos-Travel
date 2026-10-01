@@ -22,18 +22,20 @@
     .badge { flex-shrink: 0; border: 1px solid #365248; border-radius: 20px; padding: 9px 13px; color: #9ee1c3; background: #17352d80; font-size: 11px; }
     .badge::before { content: ''; display: inline-block; width: 6px; height: 6px; background: #8bddac; border-radius: 50%; margin-right: 8px; }
     .machine { padding: 10px; border: 1px solid #3a4d62; border-radius: 23px; background: linear-gradient(140deg, #304359, #142237 55%); box-shadow: 0 28px 70px #0007, inset 0 1px #ffffff15; }
-    #game-container { width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; background: #0c182b; }
+    #game-container { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; background: #0c182b; }
     #game-container canvas { display: block; }
-    .touch-controls { display: none; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 4px 4px; user-select: none; -webkit-user-select: none; }
+    .touch-controls { display: none; position: absolute; z-index: 2; left: var(--controls-left, 0px); top: var(--controls-top, 0px); width: 800px; height: 90px; transform: scale(var(--controls-scale, 1)); transform-origin: top left; align-items: center; justify-content: space-between; gap: 10px; padding: 0 24px; pointer-events: none; user-select: none; -webkit-user-select: none; }
+    .is-mobile-device .touch-controls.is-playable { display: flex; }
     .touch-move { display: flex; gap: 10px; }
-    .touch-controls button { min-width: 52px; width: clamp(52px, 16vw, 64px); height: 60px; border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50; color: #e5f7f4; font: bold 24px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
+    .touch-controls button { pointer-events: auto; min-width: 52px; width: 64px; height: 60px; border: 1px solid #658292; border-bottom-width: 4px; border-radius: 16px; background: #243d50e6; color: #e5f7f4; font: bold 24px 'Trebuchet MS', sans-serif; touch-action: none; -webkit-touch-callout: none; cursor: pointer; }
     .touch-controls .touch-jump { min-width: 76px; background: #ffcf70; border-color: #b4873f; color: #142238; font-size: 16px; }
     .touch-controls .touch-pause { min-width: 48px; height: 48px; font-size: 18px; }
     .touch-controls button.is-held, .touch-controls button:active:not(:disabled) { background: #87d7ca; color: #142238; transform: translateY(2px); border-bottom-width: 2px; }
     .touch-controls button:disabled { opacity: 0.35; cursor: default; }
     .touch-controls button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     .touch-tip { display: none; }
-    @media (any-pointer: coarse), (max-width: 900px) { .touch-controls { display: flex; } .touch-tip { display: block; color: #93a9bf; font-size: 12px; } .guide .keys { display: none; } }
+    .is-mobile-device .touch-tip { display: block; color: #93a9bf; font-size: 12px; }
+    .is-mobile-device .guide .keys { display: none; }
     @media (orientation: landscape) and (max-height: 520px) and (any-pointer: coarse) { main.arcade { width: min(calc(100% - 24px), calc((100svh - 100px) * 16 / 9)); padding: 6px 0; } header, .intro, section.guide, footer { display: none; } .machine { padding: 5px; } .touch-controls { padding-top: 8px; } }
     .guide { display: flex; justify-content: space-between; gap: 20px; padding: 22px 5px; }
     .keys { display: flex; align-items: center; gap: 9px; color: #9aafc4; font-size: 12px; flex-wrap: wrap; }
@@ -60,7 +62,7 @@
     </section>
     <div class="machine">
       <div class="game-toolbar"><button type="button" id="fullscreen-button" aria-pressed="false">? Fullscreen</button></div>
-      <div id="game-container" role="region" aria-label="Angkor Adventure game. Use the touch buttons, or arrow keys and Space, to move and jump."></div>
+      <div id="game-container" role="region" aria-label="Angkor Adventure game. Use the touch buttons, or arrow keys and Space, to move and jump.">
       <div class="touch-controls" role="group" aria-label="Touch game controls">
         <div class="touch-move">
           <button type="button" data-action="left" aria-label="Move left" disabled>&larr;</button>
@@ -68,6 +70,7 @@
         </div>
         <button type="button" class="touch-pause" data-action="pause" aria-label="Pause game" disabled>Ⅱ</button>
         <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
+      </div>
       </div>
     </div>
     <section class="guide" aria-label="Controls and objective">
