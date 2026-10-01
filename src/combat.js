@@ -1,4 +1,5 @@
 import { touchControls } from './mobileControls.js';
+import { damageBoss, updateFinalBoss } from './finalBoss.js';
 
 export function installCombat(scene) {
   scene.arrows = Math.max(0, scene.currentLevel >= 4 ? (scene.arrows || 0) : 0);
@@ -31,6 +32,7 @@ export function installCombat(scene) {
   scene.physics.add.overlap(scene.arrowProjectiles, scene.enemies, (arrow, enemy) => {
     if (!arrow.active || !enemy.active || !enemy.body.enable || scene.isLevelFinished) return;
     arrow.destroy();
+    if (enemy.isBoss) { damageBoss(scene, enemy); return; }
     enemy.disableBody(true, true);
     scene.score += 200;
     scene.updateHUD();
@@ -167,6 +169,7 @@ export function updateCombat(scene) {
   const now = scene.time.now;
   scene.enemies.getChildren().forEach(enemy => {
     if (!enemy.active || !enemy.body?.enable) return;
+    if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }
     if (enemy.body.top > scene.map.heightInPixels + 36) { enemy.destroy(); return; }
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);

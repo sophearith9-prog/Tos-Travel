@@ -13,6 +13,7 @@ import { installCombat, setupEnemy, updateCombat, grantBoxArrows } from '../comb
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
+import { installFinalBoss, damageBoss } from '../finalBoss.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -207,7 +208,10 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    this.physics.add.collider(this.enemies, this.groundLayer);
+    this.physics.add.collider(this.enemies, this.groundLayer, null, (enemy, tile) => {
+      // The giant lands on platform tops without getting trapped under low ceilings.
+      return !enemy.isBoss || (enemy.body.velocity.y >= 0 && enemy.body.bottom <= tile.pixelY + 12);
+    });
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
     // Finish Section: Flagpole Trigger Zone (width - 15) and Castle Door (width - 7)
@@ -258,6 +262,7 @@ export class GameScene extends Phaser.Scene {
     this.createHUD();
     this.showLevelIntroBanner(config.title);
     installCombat(this);
+    installFinalBoss(this);
 
     // BGM
     if (!this.sound.get('bgm')) {
@@ -634,6 +639,7 @@ export class GameScene extends Phaser.Scene {
     if (!forceDamage && isFalling && isAbove) {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
+      if (enemy.isBoss) { damageBoss(this, enemy); return; }
       this.score += 200;
       this.updateHUD();
       this.showFloatingText(enemy.x, enemy.y - 8, '+200', '#4ade80');
@@ -678,6 +684,13 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.boss?.active && this.boss.health > 0) {
+      if (this.time.now >= (this.nextBossWarning || 0)) {
+        this.showFloatingText(player.x, player.y - 25, 'Defeat the guardian first!', '#ffb4a9');
+        this.nextBossWarning = this.time.now + 1500;
+      }
+      return;
+    }
     this.isLevelFinished = true;
     this.bow?.setVisible(false);
     this.arrowProjectiles?.clear(true, true);
