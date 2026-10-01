@@ -1,0 +1,11 @@
+mario_view/
+├── assets/
+│   ├── tilemap_packed.png
+│   └── level1.tmj
+├── src/
+│   ├── scenes/
+│   │   ├── MainMenuScene.js
+│   │   ├── GameScene.js
+│   │   └── GameOverScene.js
+│   └── main.js
+└── index.html

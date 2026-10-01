@@ -1,0 +1,8 @@
+{
+  "name": "my-mario-game",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve ."
+  }
+}
