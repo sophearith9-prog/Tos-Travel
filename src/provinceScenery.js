@@ -1,3 +1,5 @@
+import { addScrollingBackdrop } from './scrollingBackdrop.js';
+
 export function prepareProvinceTerrain(scene, province) {
   const key = `province-terrain-${province.id}`;
   if (scene.textures.exists(key)) return key;
@@ -6,15 +8,26 @@ export function prepareProvinceTerrain(scene, province) {
   const ctx = texture.context;
   ctx.imageSmoothingEnabled = false;ctx.drawImage(source,0,0);
   const beach = ['island-coast','turquoise-coast'].includes(province.theme);
-  const stone = ['palace-night','cliff-temple','brick-temple','angkor','forest-temple'].includes(province.theme);
+  const stone = ['palace-night','cliff-temple','brick-temple','angkor','forest-temple','temple-lake'].includes(province.theme);
+  const banteay = province.id === 'banteay-meanchey';
   for (const id of [1,2,3,21,22,23]) {
     const x = (id-1)%20*18, y = Math.floor((id-1)/20)*18;
     ctx.save();ctx.beginPath();ctx.rect(x,y,18,18);ctx.clip();
-    ctx.fillStyle=beach?'#c8a776':stone?'#8f805f':'#947044';ctx.fillRect(x,y,18,18);
-    ctx.fillStyle=beach?'#e9d9ae':stone?'#b6a77e':'#b58a56';
-    for(let row=0;row<3;row++)for(let col=0;col<3;col++)ctx.fillRect(x+col*7-row%2*3,y+row*6+1,5,4);
-    if(id<=3){ctx.fillStyle=beach?'#fff0c9':stone?'#d3c18d':province.land;ctx.fillRect(x,y,18,3);
-      ctx.fillStyle=beach?'#e6ce97':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
+    ctx.fillStyle=banteay?'#504b3e':beach?'#c8a776':stone?'#8f805f':'#947044';ctx.fillRect(x,y,18,18);
+    if (banteay) {
+      const stones = [[1, 5, 6, 4], [9, 3, 7, 5], [4, 12, 8, 4], [13, 12, 4, 3]];
+      stones.forEach(([dx, dy, width, height], index) => {
+        ctx.fillStyle = index % 2 ? '#625b46' : '#73694f';
+        ctx.fillRect(x + dx, y + dy, width, height);
+        ctx.fillStyle = '#8a7854';
+        ctx.fillRect(x + dx, y + dy, width, 1);
+      });
+    } else {
+      ctx.fillStyle=beach?'#e9d9ae':stone?'#b6a77e':'#b58a56';
+      for(let row=0;row<3;row++)for(let col=0;col<3;col++)ctx.fillRect(x+col*7-row%2*3,y+row*6+1,5,4);
+    }
+    if(id<=3){ctx.fillStyle=banteay?'#675f43':beach?'#fff0c9':stone?'#d3c18d':province.land;ctx.fillRect(x,y,18,3);
+      ctx.fillStyle=banteay?'#78804e':beach?'#e6ce97':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
     ctx.restore();
   }
   texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);return key;
@@ -22,7 +35,8 @@ export function prepareProvinceTerrain(scene, province) {
 
 // Native pixel scenery shares the game's blocky drawing style and province palette.
 export function addProvinceScenery(scene, province) {
-  const key = `province-${province.id}`;
+  const key = province.id === 'banteay-meanchey' && scene.textures.exists('banteay-countryside')
+    ? 'banteay-countryside' : `province-${province.id}`;
   if (!scene.textures.exists(key)) {
     const texture = scene.textures.createCanvas(key, 400, 225);
     const ctx = texture.context;
@@ -106,7 +120,42 @@ export function addProvinceScenery(scene, province) {
     const theme = province.theme;
     // Lift landmarks above the playable ground so rivers and bridges stay visible.
     ctx.translate(0,-35);
-    if (['island-coast','turquoise-coast','misty-coast'].includes(theme)) {
+    if (theme === 'temple-lake') {
+      // Weathered face towers and galleries beside an open reed-filled wetland.
+      rect(0,145,400,80,'#8eaa70');
+      rect(205,150,195,75,'#669b98');
+      polygon([[192,150],[238,149],[259,162],[233,175],[266,191],[215,210],[182,210]],'#98b176');
+      for(let i=0;i<24;i++)rect(228+i*37%168,155+i*11%48,8+i%3*5,1,'#b5d1b5');
+      for(let i=0;i<7;i++){const x=245+i*23;rect(x,168+i%3*8,2,13,'#56764d');rect(x-2,163+i%3*8,5,6,'#9da866');}
+      const masonry=(x,y,w,h)=>{
+        rect(x,y,w,h,'#626b58');
+        for(let row=0;row<h;row+=6)for(let col=0;col<w;col+=10){
+          rect(x+col+(row/6%2?3:0),y+row+1,Math.min(8,w-col),4,'#959780');
+        }
+      };
+      masonry(34,153,150,29);
+      for(let x=44;x<180;x+=23){rect(x,161,11,21,'#344438');rect(x-2,159,15,3,'#b2ae8f');}
+      for(const [x,h] of [[65,62],[110,88],[155,56]]){
+        masonry(x-15,153-h,30,h);
+        for(let step=0;step<4;step++)rect(x-11+step*2,153-h-4-step*4,22-step*4,4,'#7b806b');
+        rect(x-12,153-h+21,24,33,'#a0a088');
+        rect(x-11,153-h+22,3,26,'#c1b99a');
+        rect(x-9,153-h+30,7,2,'#44513f');rect(x+3,153-h+30,7,2,'#44513f');
+        rect(x-1,153-h+32,3,10,'#747d63');rect(x-4,153-h+43,9,2,'#4a5844');
+        rect(x-3,153-h+46,7,2,'#c1b99a');
+        rect(x+9,153-h+16,3,14,'#607d4f');
+      }
+      masonry(22,183,172,5);rect(28,188,162,3,'#75845e');
+      for(const [x,y] of [[34,154],[79,179],[173,154],[140,182]]){rect(x,y,10,3,'#648454');rect(x+2,y+3,5,4,'#7b9957');}
+      // Broken blocks, trailing vines and palms preserve the ruined Khmer setting.
+      masonry(16,176,13,9);masonry(181,172,14,11);
+      tree(13,194,60);palm(213,176,42);palm(374,173,45);
+      rect(28,142,2,34,'#557249');rect(30,155,5,2,'#708d52');
+      for(const [x,y] of [[269,159],[304,174],[349,161]]){
+        rect(x,y,7,3,'#ede8ca');rect(x+5,y-6,2,7,'#ede8ca');rect(x+6,y-7,4,2,'#ede8ca');
+        rect(x+9,y-6,3,1,'#b79953');rect(x+1,y+3,1,8,'#515f48');rect(x+5,y+3,1,8,'#515f48');
+      }
+    } else if (['island-coast','turquoise-coast','misty-coast'].includes(theme)) {
       water(136,89);hill(125,157,130,35,province.land);hill(330,155,90,28,'#719582');
       rect(0,201,400,24,theme==='turquoise-coast'?'#fff0ca':'#e8d3a3');
       [30,71,355].forEach(x=>palm(x,208,55));
@@ -155,10 +204,13 @@ export function addProvinceScenery(scene, province) {
     texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
   const zoom = scene.cameras.main.zoom;
-  scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);
+  if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
+  else scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);
+  if (scene.currentLevel !== 5 && scene.currentLevel !== 6) {
   const caption = scene.screenText(400,128,`${province.khmer} · ${province.places}`,{
     fontFamily:'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif',fontSize:'12px',color:'#fff2cd',
     stroke:'#17271f',strokeThickness:3,align:'center'
   }).setOrigin(0.5).setDepth(200);
   scene.tweens.add({targets:caption,alpha:0,delay:2500,duration:600});
+  }
 }

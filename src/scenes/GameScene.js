@@ -9,11 +9,13 @@ import { addCambodiaJourney } from '../cambodiaJourney.js';
 import { addAngkorWatBackdrop } from '../angkorWatBackdrop.js';
 import { prepareAngkorGround } from '../angkorGround.js';
 import { touchControls } from '../mobileControls.js';
-import { installCombat, setupEnemy, updateCombat, grantBoxArrows } from '../combat.js';
+import { installCombat, setupEnemy, updateCombat, updateBowPose, grantBoxArrows } from '../combat.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
 import { installFinalBoss } from '../finalBoss.js';
+import { addTempleEntrance } from '../templeEntrance.js';
+import { addTemplePuzzle, createLevelPuzzle } from '../templePuzzle.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -35,6 +37,8 @@ export class GameScene extends Phaser.Scene {
     this.arrowText = null;
     this.shootKey = null;
     this.sprintKey = null;
+    this.templeEntrance = null;
+    this.templePuzzle = null;
   }
 
   preload() {
@@ -64,6 +68,11 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 3) {
       this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
       this.load.image('temple-part-source', 'assets/templepart.png');
+    }
+    if (LEVEL_CONFIGS[this.currentLevel]?.province?.id === 'banteay-meanchey') {
+      this.load.image('banteay-countryside', 'assets/banteay-meanchey-countryside.jpg');
+      this.load.image('banteay-temple-interior', 'assets/banteay-meanchey-forest-pixel.png');
+      this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
     this.load.image('enemy-source', 'assets/khmer-guardian-animations.png');
@@ -236,6 +245,7 @@ export class GameScene extends Phaser.Scene {
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
     this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
     if (config.province) addProvinceScenery(this, config.province);
+    if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
     if (this.currentLevel === 3) {
       const zoom = this.cameras.main.zoom;
       this.textures.get('angkor-sunset-level3').setFilter(Phaser.Textures.FilterMode.NEAREST);
@@ -264,6 +274,32 @@ export class GameScene extends Phaser.Scene {
     this.createHUD();
     this.showLevelIntroBanner(config.title);
     installCombat(this);
+    if (this.currentLevel >= 1 && this.currentLevel <= TOTAL_LEVELS) {
+      const puzzle = createLevelPuzzle(this.currentLevel);
+      if (this.currentLevel === 5) Object.assign(puzzle, {
+        sequence: ['MOON', 'SUN', 'LOTUS'],
+        symbols: ['SUN', 'LOTUS', 'MOON'],
+        gateX: 760,
+        title: 'THE THREE SEALS',
+        clue: 'Night rests. Dawn rises. The flower opens.',
+        reward: 500,
+        barrierColor: 0x4b4432,
+        resetMessage: 'The seals reset. Read the tablet and try again.',
+        openMessage: 'Temple gate opened'
+      });
+      if (this.currentLevel === 6) Object.assign(puzzle, {
+        sequence: ['RIVER', 'FLAME', 'STAR', 'LEAF'],
+        symbols: ['STAR', 'LEAF', 'RIVER', 'FLAME'],
+        gateX: 760,
+        title: 'THE FOUR RIVER RUNES',
+        clue: 'Follow the river. Kindle the flame. Find the star. Rest in the leaves.',
+        reward: 700,
+        barrierColor: 0x213b37,
+        resetMessage: 'Runes reset. Follow the clue from left to right.',
+        openMessage: 'The shrine gate opened'
+      });
+      this.templePuzzle = addTemplePuzzle(this, puzzle);
+    }
     installFinalBoss(this);
     if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
       this.screenText(18, 110, 'HOLD SHIFT + MOVE: SPRINT', {
@@ -291,8 +327,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   showLevelIntroBanner(title) {
-    const banner = this.screenText(400, 95, 'LEVEL ' + this.currentLevel + ': ' + title.toUpperCase(), {
-      fontSize: '18px',
+    const hasPuzzle = this.currentLevel >= 1 && this.currentLevel <= TOTAL_LEVELS;
+    const banner = this.screenText(400, hasPuzzle ? 61 : 95, 'LEVEL ' + this.currentLevel + ': ' + title.toUpperCase(), {
+      fontSize: hasPuzzle ? '15px' : '18px',
       color: '#ffd700',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -305,8 +342,8 @@ export class GameScene extends Phaser.Scene {
       targets: banner,
       alpha: 0,
       y: banner.y - 12,
-      delay: 1500,
-      duration: 800,
+      delay: hasPuzzle ? 700 : 1500,
+      duration: hasPuzzle ? 550 : 800,
       onComplete: () => banner.destroy()
     });
   }
@@ -635,7 +672,7 @@ export class GameScene extends Phaser.Scene {
     this.scoreText.setText('SCORE: ' + String(this.score).padStart(5, '0'));
     this.coinsText.setText('COINS: ' + String(this.coins).padStart(2, '0'));
     this.drawLifeHearts();
-    this.arrowText?.setText(`ARROWS: ${this.arrows}  |  F: SHOOT`);
+    this.arrowText?.setText(`ARROWS: ${this.arrows}  |  F: SHOOT  |  B: BOW`);
   }
 
   handlePlayerEnemyCollision(player, enemy, forceDamage = false) {
@@ -693,6 +730,7 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.templePuzzle && !this.templePuzzle.solved) return;
     if (this.boss?.active && this.boss.health > 0) {
       if (this.time.now >= (this.nextBossWarning || 0)) {
         this.showFloatingText(player.x, player.y - 25, 'Defeat the guardian first!', '#ffb4a9');
@@ -859,7 +897,10 @@ export class GameScene extends Phaser.Scene {
 
     if (this.isLevelFinished) return;
 
-    updateCombat(this);
+    if (this.templeEntrance?.update()) return;
+    this.templePuzzle?.update();
+
+    if (!this.templeEntrance?.outside) updateCombat(this);
 
     // Player Movement controls
     const left = touchControls.left || (this.cursors && (this.cursors.left.isDown || (this.wasd && this.wasd.left.isDown)));
@@ -895,6 +936,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.player.body.blocked.down) {
       this.player.play('player-jump', true);
     }
+
+    updateBowPose(this);
 
     // Pit fall detection
     if (this.player.y > 280) {

@@ -14,11 +14,12 @@ export function installCombat(scene) {
     ctx.fillStyle = '#c3c5a5'; ctx.fillRect(3, 2, 3, 2);
     texture.refresh();
   }
-  scene.physics.add.collider(scene.rockProjectiles, scene.groundLayer, rock => rock.destroy());
+  scene.physics.add.collider(scene.rockProjectiles, scene.groundLayer,
+    rock => retireRock(scene, rock), projectileCanCollide);
   scene.physics.add.overlap(scene.player, scene.rockProjectiles, (player, rock) => {
     if (!rock.active || scene.isLevelFinished) return;
     scene.handlePlayerEnemyCollision(player, rock, true);
-    rock.destroy();
+    retireRock(scene, rock);
   });
   if (!scene.textures.exists('bow-arrow')) {
     const texture = scene.textures.createCanvas('bow-arrow', 24, 8);
@@ -28,10 +29,11 @@ export function installCombat(scene) {
     ctx.fillStyle = '#c8e0dc'; ctx.fillRect(19, 2, 3, 4); ctx.fillRect(22, 3, 2, 2);
     texture.refresh();
   }
-  scene.physics.add.collider(scene.arrowProjectiles, scene.groundLayer, arrow => arrow.destroy());
+  scene.physics.add.collider(scene.arrowProjectiles, scene.groundLayer,
+    arrow => retireRock(scene, arrow), projectileCanCollide);
   scene.physics.add.overlap(scene.arrowProjectiles, scene.enemies, (arrow, enemy) => {
     if (!arrow.active || !enemy.active || !enemy.body.enable || scene.isLevelFinished) return;
-    arrow.destroy();
+    retireRock(scene, arrow);
     if (enemy.isBoss) { damageBoss(scene, enemy); return; }
     enemy.disableBody(true, true);
     scene.score += 200;
@@ -39,10 +41,18 @@ export function installCombat(scene) {
     scene.showFloatingText(enemy.x, enemy.y - 12, '+200', '#86efac');
     enemy.destroy();
   });
-  scene.bow = scene.add.graphics().setDepth(12);
-  if (scene.input.keyboard) scene.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+  scene.bow = scene.add.graphics().setDepth(12).setVisible(false);
+  if (scene.input.keyboard) {
+    scene.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    const toggleBow = event => {
+      if (event.repeat || scene.currentLevel < 4 || scene.isLevelFinished || !scene.scene.isActive()) return;
+      scene.bow.setVisible(!scene.bow.visible);
+    };
+    scene.input.keyboard.on('keydown-B', toggleBow);
+    scene.events.once('shutdown', () => scene.input.keyboard.off('keydown-B', toggleBow));
+  }
   if (scene.currentLevel >= 4) {
-    scene.arrowText = scene.screenText(18, 90, `ARROWS: ${scene.arrows}  |  F: SHOOT`, {
+    scene.arrowText = scene.screenText(18, 90, `ARROWS: ${scene.arrows}  |  F: SHOOT  |  B: BOW`, {
       fontSize: '12px', fontStyle: 'bold', color: '#ffe1a3',
       stroke: '#17271f', strokeThickness: 3
     }).setDepth(210);
@@ -139,8 +149,26 @@ export function throwRock(scene, enemy) {
   rock.setVelocity(distance / flightTime,
     (scene.player.body.center.y - rock.y - 0.5 * gravity * flightTime * flightTime) / flightTime);
   rock.body.setSize(8, 8).setOffset(1, 1);
-  scene.time.delayedCall(2500, () => { if (rock.active) rock.destroy(); });
+  scene.time.delayedCall(2500, () => retireRock(scene, rock));
   return rock;
+}
+
+export function projectileCanCollide(projectile) {
+  return !!(projectile?.active && projectile.body?.enable);
+}
+
+// Keep the body intact until Phaser finishes every collision and body update.
+// Tile collisions can continue iterating after the first contact callback.
+export function retireRock(scene, rock) {
+  if (!rock?.active) return;
+  rock.setActive(false).setVisible(false);
+  if (rock.body) {
+    rock.body.stop();
+    rock.body.enable = false;
+  }
+  scene.events.once('postupdate', () => {
+    if (rock.scene && !rock.active) rock.destroy();
+  });
 }
 
 export function grantBoxArrows(scene, block) {
@@ -241,16 +269,40 @@ export function updateCombat(scene) {
   });
   if (scene.currentLevel < 4) return;
   if (touchControls.shoot || scene.shootKey?.isDown) shootBow(scene);
-  // Wooden Cambodian-inspired bow with gold binding and naga-shaped tips.
+}
+
+export function updateBowPose(scene) {
+  if (scene.currentLevel < 4 || !scene.bow) return;
+  const now = scene.time.now;
   const direction = scene.player.flipX ? -1 : 1;
-  const x = scene.player.x + direction * 11, y = scene.player.body.center.y;
-  const draw = now < (scene.bowDrawUntil || 0) ? -direction * 4 : 0;
+  // Grip sits at chest height; the bow is smaller than the character's full height.
+  const bounds = scene.player.getBounds();
+  const x = scene.player.x + direction * 6, y = bounds.top + bounds.height * 0.60;
+  const halfHeight = scene.player.displayHeight * 0.30;
+  const draw = now < (scene.bowDrawUntil || 0) ? -direction * 3 : 0;
   const g = scene.bow;
-  g.clear(); g.lineStyle(2, 0xb77935);
-  g.beginPath(); g.moveTo(x, y - 11); g.lineTo(x + direction * 5, y - 6);
-  g.lineTo(x + direction * 7, y); g.lineTo(x + direction * 5, y + 6);
-  g.lineTo(x, y + 11); g.strokePath();
-  g.lineStyle(1, 0xffe0a0); g.beginPath(); g.moveTo(x, y - 11);
-  g.lineTo(x + draw, y); g.lineTo(x, y + 11); g.strokePath();
-  g.fillStyle(0xe8bb56); g.fillRect(x - 1, y - 12, 3, 3); g.fillRect(x - 1, y + 10, 3, 3);
+  g.clear();
+  if (!g.visible) return;
+  // Sleeves and hands belong to the held pose and mirror with the character.
+  const arm = (points, color, width) => {
+    g.lineStyle(width, color); g.beginPath();
+    points.forEach(([px, py], index) => index ? g.lineTo(px, py) : g.moveTo(px, py));
+    g.strokePath();
+  };
+  const shoulder = scene.player.x - direction;
+  arm([[shoulder, y - 2], [x - direction * 2, y], [x + direction * 3, y]], 0x583a2b, 4);
+  arm([[shoulder, y - 2], [x - direction * 2, y]], 0xf4deb2, 3);
+  arm([[x - direction * 2, y], [x + direction * 3, y]], 0xe3a879, 2);
+  g.lineStyle(1.5, 0xb77935);
+  g.beginPath(); g.moveTo(x, y - halfHeight); g.lineTo(x + direction * 2, y - halfHeight / 2);
+  g.lineTo(x + direction * 3, y); g.lineTo(x + direction * 2, y + halfHeight / 2);
+  g.lineTo(x, y + halfHeight); g.strokePath();
+  g.lineStyle(0.7, 0xffe0a0); g.beginPath(); g.moveTo(x, y - halfHeight);
+  g.lineTo(x + draw, y); g.lineTo(x, y + halfHeight); g.strokePath();
+  g.fillStyle(0xe8bb56); g.fillRect(x - 0.5, y - halfHeight - 1, 1.5, 2);
+  g.fillRect(x - 0.5, y + halfHeight - 1, 1.5, 2);
+  // The other hand pulls the string toward the chest during a shot.
+  arm([[shoulder - direction * 2, y + 1], [x + draw, y]], 0x583a2b, 3);
+  arm([[shoulder - direction * 2, y + 1], [x + draw, y]], 0xf4deb2, 2);
+  g.fillStyle(0xe3a879); g.fillRect(x + draw - 1, y - 1, 2, 2);
 }

@@ -1,4 +1,5 @@
 import { TOTAL_LEVELS } from './levels/provinceRoute.js';
+import { retireRock } from './combat.js';
 
 export function installFinalBoss(scene) {
   scene.boss = null;
@@ -122,7 +123,7 @@ export function updateFinalBoss(scene, boss, now) {
       const flight = Math.max(0.35, Math.min(1.2, Math.abs(player.x - rock.x) / 260));
       rock.setVelocity((player.body.center.x + player.body.velocity.x * flight * 0.5 - rock.x) / flight,
         (player.body.center.y + offset - rock.y - 0.5 * scene.physics.world.gravity.y * flight * flight) / flight);
-      scene.time.delayedCall(2500, () => { if (rock.active) rock.destroy(); });
+      scene.time.delayedCall(2500, () => retireRock(scene, rock));
     }
   } else if (now >= (boss.shootUntil || 0)) boss.play('guardian-walk-1', true);
 }

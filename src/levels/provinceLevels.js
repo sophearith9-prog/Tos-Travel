@@ -4,7 +4,9 @@ export function createProvinceLevel(province, index) {
   const width = 200 + (index % 4) * 10;
   const coins = [], enemies = [];
   for (let x = 15; x < width - 27; x += 22) {
-    coins.push({ x: x * 18 + 9, y: 105 }, { x: x * 18 + 27, y: 85 }, { x: x * 18 + 45, y: 105 });
+    if (province.id !== 'banteay-meanchey' || x > 29) {
+      coins.push({ x: x * 18 + 9, y: 105 }, { x: x * 18 + 27, y: 85 }, { x: x * 18 + 45, y: 105 });
+    }
     if (x > 20 && enemies.length < 5) enemies.push({ x: (x + 7) * 18 + 9, y: 170 });
   }
   return { title: province.name, province, width, skyColor: province.sky,
@@ -31,6 +33,10 @@ export function createProvinceMap(level) {
     const row = 7 + ((x + routeIndex) % 2);
     platform(x, 5, row);
     grid[5][x + 2] = 48;
+  }
+  // Leave a clear, grounded courtyard for level 5's three-seal puzzle.
+  if (level.province.id === 'banteay-meanchey') {
+    for (let y = 0; y < 11; y++) for (let x = 12; x <= 29; x++) grid[y][x] = 0;
   }
   for (let i = 0; i < 4; i++) for (let y = 10 - i; y <= 10; y++) grid[y][width - 24 + i] = 48;
   const flag = width - 15;
