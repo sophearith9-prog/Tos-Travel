@@ -52,6 +52,9 @@ export class GameScene extends Phaser.Scene {
       this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
       this.load.image('angkor-wat-finish', 'assets/angkor-wat-finish.png');
     }
+    const musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
+    const musicFile = this.currentLevel === 2 ? 'skothom.mp3' : 'bgm.mp3';
+    this.load.audio(musicKey, `assets/audio/${musicFile}`);
     if (this.currentLevel === 2) {
       this.load.image('angkor-wat-level2', 'assets/angkor-wat-level2.png');
       this.load.image('temple-part-source', 'assets/templepart.png');
@@ -78,12 +81,17 @@ export class GameScene extends Phaser.Scene {
       frameWidth: 18,
       frameHeight: 18
     });
-
-    this.load.audio('jump', 'assets/audio/jump.wav');
-    this.load.audio('coin', 'assets/audio/coin.wav');
-    this.load.audio('stomp', 'assets/audio/stomp.wav');
-    this.load.audio('bgm', 'assets/audio/bgm.mp3');
-    this.load.audio('win', 'assets/audio/win.wav');
+    if (this.currentLevel === 2) {
+      this.load.audio('jump', 'assets/audio/jump.wav');
+      this.load.audio('coin', 'assets/audio/coin.wav');
+      this.load.audio('stomp', 'assets/audio/stomp.wav');
+      this.load.audio('win', 'assets/audio/win.wav');
+    }else{
+      this.load.audio('jump', 'assets/audio/jump.wav');
+      this.load.audio('coin', 'assets/audio/coin.wav');
+      this.load.audio('stomp', 'assets/audio/stomp.wav');
+      this.load.audio('win', 'assets/audio/win.wav');
+    }
   }
 
   create() {
@@ -208,11 +216,10 @@ export class GameScene extends Phaser.Scene {
           enemy.setScale(scale).setOrigin(0.5, 1 - 9 / 28);
           enemy.body.setSize(14 / scale, 14 / scale)
             .setOffset((96 - 14 / scale) / 2, 96 - 14 / scale);
-          setupEnemy(this, enemy, index, pos.variant);
         } else {
-          enemy.play('enemy-walk');
           enemy.body.setSize(14, 14).setOffset(2, 4);
         }
+        setupEnemy(this, enemy, index, pos.variant);
       });
     }
 
@@ -280,17 +287,18 @@ export class GameScene extends Phaser.Scene {
       }).setDepth(210);
     }
 
-    // BGM
-    if (!this.sound.get('bgm')) {
-      playSound(this, 'bgm', { loop: true, volume: 0.25 });
-    } else if (!this.sound.get('bgm').isPlaying) {
-      this.sound.get('bgm').play();
-    }
+    // Stop the previous level's track, then resume or start this level's music.
+    this.musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
+    const otherMusicKey = this.musicKey === 'bgm-level-2' ? 'bgm-default' : 'bgm-level-2';
+    this.sound.stopByKey(otherMusicKey);
+    const music = this.sound.get(this.musicKey);
+    if (!music) playSound(this, this.musicKey, { loop: true, volume: 0.25 });
+    else if (!music.isPlaying) music.play();
   }
 
   pauseGame() {
     if (!this.scene.isActive() || this.scene.isActive('PauseScene')) return;
-    const music = this.sound.get('bgm');
+    const music = this.sound.get(this.musicKey);
     const resumeMusic = !!music?.isPlaying;
     if (resumeMusic) music.pause();
     this.input.keyboard?.resetKeys();
@@ -672,7 +680,7 @@ export class GameScene extends Phaser.Scene {
       this.updateHUD();
 
       if (this.lives <= 0) {
-        this.sound.stopByKey('bgm');
+        this.sound.stopByKey(this.musicKey);
         this.scene.start('GameOverScene', {
           level: this.currentLevel,
           score: this.score,
@@ -721,7 +729,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Stop music and play victory sound
-    this.sound.stopByKey('bgm');
+    this.sound.stopByKey(this.musicKey);
     playSound(this, 'win', { volume: 0.55 });
 
     // Step 1: Slide down flagpole
@@ -910,7 +918,7 @@ export class GameScene extends Phaser.Scene {
 
     // Pit fall detection
     if (this.player.y > 280) {
-      this.sound.stopByKey('bgm');
+      this.sound.stopByKey(this.musicKey);
       this.scene.start('GameOverScene', {
         level: this.currentLevel,
         score: this.score,

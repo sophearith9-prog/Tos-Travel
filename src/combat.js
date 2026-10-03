@@ -92,7 +92,8 @@ export function setupEnemy(scene, enemy, index, variant = index % 3) {
   enemy.patrolOrigin = enemy.x;
   enemy.nextJump = scene.time.now + 1000 + Math.random() * 2000;
   enemy.airSpeed = 0;
-  enemy.play(`guardian-walk-${enemy.guardianVariant}`);
+  enemy.play(enemy.texture.key === 'enemy-guardians'
+    ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk');
 }
 
 export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
@@ -133,7 +134,8 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
   }
   enemy.setVelocityX((enemy.airSpeed || speed) * enemy.patrolDirection);
   enemy.setFlipX(enemy.patrolDirection > 0);
-  enemy.play(`guardian-walk-${enemy.guardianVariant}`, true);
+  enemy.play(enemy.texture.key === 'enemy-guardians'
+    ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk', true);
 }
 
 export function throwRock(scene, enemy) {
@@ -202,7 +204,8 @@ export function updateCombat(scene) {
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);
     if (now < enemy.attackUntil) { enemy.setVelocityX(0); return; }
-    const canFight = scene.currentLevel <= 2 || enemy.guardianVariant === 2;
+    const customEnemy = enemy.texture.key === 'enemy-guardians';
+    const canFight = customEnemy && (scene.currentLevel <= 2 || enemy.guardianVariant === 2);
     if (canFight && Math.abs(dx) < 28 && dy < 24 && enemy.body.blocked.down && now >= enemy.nextAttack) {
         enemy.setVelocityX(0);
         enemy.setFlipX(dx > 0);
@@ -220,21 +223,10 @@ export function updateCombat(scene) {
     }
     if (enemy.guardianVariant === 2 && scene.currentLevel >= 3 && Math.abs(dx) < 360 && dy < 120) {
       enemy.patrolDirection = dx >= 0 ? 1 : -1;
-      if (scene.currentLevel >= 5) {
-        roamEnemy(scene, enemy, now, scene.enemySpeed * 1.6);
-      } else {
-        // Chase on foot in early levels, stopping at walls and ledges.
-        const row = Math.floor((enemy.body.bottom + 2) / scene.map.tileHeight);
-        const ahead = Math.floor((enemy.body.center.x + enemy.patrolDirection * 13) / scene.map.tileWidth);
-        const blocked = enemy.body.blocked.left || enemy.body.blocked.right ||
-          !patrolSurface(scene, ahead, row);
-        enemy.setVelocityX(blocked ? 0 : scene.enemySpeed * 1.6 * enemy.patrolDirection);
-        enemy.setFlipX(enemy.patrolDirection > 0);
-        enemy.play(`guardian-walk-${enemy.guardianVariant}`, true);
-      }
+      roamEnemy(scene, enemy, now, scene.enemySpeed * 1.6);
       return;
     }
-    if (enemy.guardianVariant === 1 && scene.currentLevel >= 3 && Math.abs(dx) < 240 && dy < 100 &&
+    if (customEnemy && enemy.guardianVariant === 1 && scene.currentLevel >= 3 && Math.abs(dx) < 240 && dy < 100 &&
         enemy.body.blocked.down && now >= enemy.nextAttack) {
       enemy.setFlipX(dx > 0);
       enemy.setVelocityX(0);
@@ -247,25 +239,7 @@ export function updateCombat(scene) {
       });
       return;
     }
-    if (scene.currentLevel >= 5) { roamEnemy(scene, enemy, now); return; }
-    // Earlier levels patrol within their continuous surface, up to 90px per side.
-    if (enemy.body.blocked.down) {
-      const row = Math.floor((enemy.body.bottom + 2) / scene.map.tileHeight);
-      const col = Math.floor(enemy.body.center.x / scene.map.tileWidth);
-      if (patrolSurface(scene, col, row) && enemy.patrolRow !== row) {
-        const { first, last } = patrolBounds(scene, col, row);
-        enemy.patrolLeft = Math.max(first * scene.map.tileWidth + 8, enemy.patrolOrigin - 90);
-        enemy.patrolRight = Math.min((last + 1) * scene.map.tileWidth - 8, enemy.patrolOrigin + 90);
-        enemy.patrolRow = row;
-      }
-      const ahead = Math.floor((enemy.body.center.x + enemy.patrolDirection * 8) / scene.map.tileWidth);
-      if (enemy.body.blocked.left || enemy.x <= enemy.patrolLeft) enemy.patrolDirection = 1;
-      else if (enemy.body.blocked.right || enemy.x >= enemy.patrolRight) enemy.patrolDirection = -1;
-      else if (!patrolSurface(scene, ahead, row)) enemy.patrolDirection *= -1;
-    }
-    enemy.setVelocityX(scene.enemySpeed * enemy.patrolDirection);
-    enemy.setFlipX(enemy.patrolDirection > 0);
-    enemy.play(`guardian-walk-${enemy.guardianVariant}`, true);
+    roamEnemy(scene, enemy, now);
   });
   if (scene.currentLevel < 4) return;
   if (touchControls.shoot || scene.shootKey?.isDown) shootBow(scene);

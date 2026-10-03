@@ -16,7 +16,7 @@ export class PauseScene extends Phaser.Scene {
       if (resumed) return;
       resumed = true;
       game.input.keyboard?.resetKeys();
-      if (resumeMusic) this.sound.get('bgm')?.resume();
+      if (resumeMusic) this.sound.get(game.musicKey)?.resume();
       this.scene.resume('GameScene');
       this.scene.stop();
     };
@@ -24,7 +24,7 @@ export class PauseScene extends Phaser.Scene {
       if (resumed) return;
       resumed = true;
       game.input.keyboard?.resetKeys();
-      this.sound.stopByKey('bgm');
+      this.sound.stopByKey(game.musicKey);
       this.scene.stop('GameScene');
       this.scene.start(destination, data);
     };

@@ -10,7 +10,8 @@ export class GameOverScene extends Phaser.Scene {
     this.load.audio('lose', 'assets/audio/lose.wav');
   }
   create() {
-    this.sound.stopByKey('bgm');
+    this.sound.stopByKey('bgm-level-2');
+    this.sound.stopByKey('bgm-default');
     playSound(this, 'lose', { volume: 0.55 });
     this.events.once('shutdown', () => this.sound.stopByKey('lose'));
     backdrop(this);

@@ -13,7 +13,8 @@ export class VictoryScene extends Phaser.Scene {
 
   create() {
     backdrop(this);
-    this.sound.stopByKey('bgm');
+    this.sound.stopByKey('bgm-level-2');
+    this.sound.stopByKey('bgm-default');
     playSound(this, 'win', { volume: 0.5 });
 
     // Confetti stays behind the winner card and is cleaned up with the scene.

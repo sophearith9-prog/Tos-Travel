@@ -4,6 +4,8 @@ export function prepareCharacterSkin(scene) {
   if (!scene.textures.exists('character-skin-source')) return;
   const source = scene.textures.get('character-skin-source').getSourceImage();
   const sheet = scene.textures.createCanvas('player-character', 96 * 5, 96 * 4);
+  // Keep pose details sharp when reducing the artwork into animation frames.
+  sheet.context.imageSmoothingEnabled = false;
   const rows = [0, 0.245, 0.485, 0.7, 1].map(y => Math.round(y * source.height));
   const frames = [];
   for (let row = 0; row < 4; row++) {
@@ -35,10 +37,13 @@ export function prepareCharacterSkin(scene) {
   const scale = Math.min(88 / Math.max(1, ...frames.map(f => f.width)),
     92 / Math.max(1, ...frames.map(f => f.height)));
   for (const { canvas, left, top, width, height, row, col } of frames) {
+    const frameWidth = Math.round(width * scale);
+    const frameHeight = Math.round(height * scale);
     if (width && height) sheet.context.drawImage(canvas, left, top, width, height,
-      col * 96 + (96 - width * scale) / 2,
-      row * 96 + 96 - height * scale, width * scale, height * scale);
+      col * 96 + Math.round((96 - frameWidth) / 2),
+      row * 96 + 96 - frameHeight, frameWidth, frameHeight);
     sheet.add(row * 5 + col, 0, col * 96, row * 96, 96, 96);
   }
   sheet.refresh();
+  sheet.setFilter(Phaser.Textures.FilterMode.NEAREST);
 }
