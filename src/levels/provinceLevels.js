@@ -34,7 +34,7 @@ export function createProvinceMap(level) {
     platform(x, 5, row);
     grid[5][x + 2] = 48;
   }
-  // Leave a clear, grounded courtyard for level 5's three-seal puzzle.
+  // Leave a clear courtyard beyond the temple entrance.
   if (level.province.id === 'banteay-meanchey') {
     for (let y = 0; y < 11; y++) for (let x = 12; x <= 29; x++) grid[y][x] = 0;
   }

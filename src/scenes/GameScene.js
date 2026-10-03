@@ -15,7 +15,6 @@ import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
-import { addTemplePuzzle, createLevelPuzzle } from '../templePuzzle.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -38,7 +37,6 @@ export class GameScene extends Phaser.Scene {
     this.shootKey = null;
     this.sprintKey = null;
     this.templeEntrance = null;
-    this.templePuzzle = null;
   }
 
   preload() {
@@ -274,32 +272,6 @@ export class GameScene extends Phaser.Scene {
     this.createHUD();
     this.showLevelIntroBanner(config.title);
     installCombat(this);
-    if (this.currentLevel >= 1 && this.currentLevel <= TOTAL_LEVELS) {
-      const puzzle = createLevelPuzzle(this.currentLevel);
-      if (this.currentLevel === 5) Object.assign(puzzle, {
-        sequence: ['MOON', 'SUN', 'LOTUS'],
-        symbols: ['SUN', 'LOTUS', 'MOON'],
-        gateX: 760,
-        title: 'THE THREE SEALS',
-        clue: 'Night rests. Dawn rises. The flower opens.',
-        reward: 500,
-        barrierColor: 0x4b4432,
-        resetMessage: 'The seals reset. Read the tablet and try again.',
-        openMessage: 'Temple gate opened'
-      });
-      if (this.currentLevel === 6) Object.assign(puzzle, {
-        sequence: ['RIVER', 'FLAME', 'STAR', 'LEAF'],
-        symbols: ['STAR', 'LEAF', 'RIVER', 'FLAME'],
-        gateX: 760,
-        title: 'THE FOUR RIVER RUNES',
-        clue: 'Follow the river. Kindle the flame. Find the star. Rest in the leaves.',
-        reward: 700,
-        barrierColor: 0x213b37,
-        resetMessage: 'Runes reset. Follow the clue from left to right.',
-        openMessage: 'The shrine gate opened'
-      });
-      this.templePuzzle = addTemplePuzzle(this, puzzle);
-    }
     installFinalBoss(this);
     if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
       this.screenText(18, 110, 'HOLD SHIFT + MOVE: SPRINT', {
@@ -327,9 +299,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   showLevelIntroBanner(title) {
-    const hasPuzzle = this.currentLevel >= 1 && this.currentLevel <= TOTAL_LEVELS;
-    const banner = this.screenText(400, hasPuzzle ? 61 : 95, 'LEVEL ' + this.currentLevel + ': ' + title.toUpperCase(), {
-      fontSize: hasPuzzle ? '15px' : '18px',
+    const banner = this.screenText(400, 95, 'LEVEL ' + this.currentLevel + ': ' + title.toUpperCase(), {
+      fontSize: '18px',
       color: '#ffd700',
       fontStyle: 'bold',
       stroke: '#000000',
@@ -342,8 +313,8 @@ export class GameScene extends Phaser.Scene {
       targets: banner,
       alpha: 0,
       y: banner.y - 12,
-      delay: hasPuzzle ? 700 : 1500,
-      duration: hasPuzzle ? 550 : 800,
+      delay: 1500,
+      duration: 800,
       onComplete: () => banner.destroy()
     });
   }
@@ -730,7 +701,6 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
-    if (this.templePuzzle && !this.templePuzzle.solved) return;
     if (this.boss?.active && this.boss.health > 0) {
       if (this.time.now >= (this.nextBossWarning || 0)) {
         this.showFloatingText(player.x, player.y - 25, 'Defeat the guardian first!', '#ffb4a9');
@@ -898,7 +868,6 @@ export class GameScene extends Phaser.Scene {
     if (this.isLevelFinished) return;
 
     if (this.templeEntrance?.update()) return;
-    this.templePuzzle?.update();
 
     if (!this.templeEntrance?.outside) updateCombat(this);
 
