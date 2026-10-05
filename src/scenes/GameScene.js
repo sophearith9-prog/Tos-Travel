@@ -1,6 +1,8 @@
 ﻿import { panel, label, button, playSound } from '../ui.js';
 import { audioSettings } from '../audioSettings.js';
+import { MAX_ARROW_AMMO } from '../arrowRules.js';
 import { showStageClear } from '../levelClear.js';
+import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { prepareEnvironment, addEnvironment } from '../environment.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
@@ -36,7 +38,7 @@ export class GameScene extends Phaser.Scene {
     this.isLevelFinished = false;
     this.isSlidingDownFlag = false;
     this.isEnteringCastle = false;
-    this.arrows = Math.max(0, Number(data.arrows) || 0);
+    this.arrows = Math.min(MAX_ARROW_AMMO, Math.max(0, Number(data.arrows) || 0));
     this.arrowText = null;
     this.shootKey = null;
     this.sprintKey = null;
@@ -131,6 +133,7 @@ export class GameScene extends Phaser.Scene {
         }
         return embedded;
       });
+      extendAngkorCauseway(cachedMap.data);
     }
     const map = this.make.tilemap({ key: mapKey });
     this.map = map;
@@ -195,7 +198,7 @@ export class GameScene extends Phaser.Scene {
     const looseCoins = this.prepareCoinBlocks(config.coins || []);
     if (looseCoins.length) {
       looseCoins.forEach(pos => {
-        const coin = this.coinsGroup.create(pos.x, pos.y, 'packed', 151);
+        const coin = this.coinsGroup.create(pos.x, pos.y, 'khmer-coin', 2);
         coin.play('coin-spin');
       });
     }
@@ -243,17 +246,18 @@ export class GameScene extends Phaser.Scene {
     this.goal = this.add.zone(flagPixelX, 99, 48, 198);
     this.physics.add.existing(this.goal, true);
     this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
-    this.add.text(flagPixelX + 25, 145, 'FINISH', {
+    this.goalLabel = this.add.text(flagPixelX + 25, 145,
+      this.currentLevel === 2 ? 'SEALED' : 'FINISH', {
       fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3
     }).setOrigin(0.5).setDepth(10);
-
     // Camera setup with level sky color
     this.cameras.main.setBackgroundColor(config.skyColor || '#5c94fc');
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
     this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
+    if (this.currentLevel === 2) installLevelTwoTrial(this);
     if (config.province) addProvinceScenery(this, config.province);
     if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
     if (this.currentLevel === 3) {
@@ -337,10 +341,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   createAnimations() {
+    if (!this.textures.exists('khmer-coin')) {
+      const coinTexture = this.textures.createCanvas('khmer-coin', 18 * 6, 18);
+      const ctx = coinTexture.context;
+      ctx.imageSmoothingEnabled = false;
+      const widths = [3, 5, 7, 9, 7, 5];
+      widths.forEach((radius, frame) => {
+        const x = frame * 18, cx = x + 9, cy = 9;
+        ctx.fillStyle = '#9b3d08';
+        ctx.beginPath(); ctx.ellipse(cx, cy, radius, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f28b0d';
+        ctx.beginPath(); ctx.ellipse(cx, cy, Math.max(1, radius - 1), 7, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffd52e';
+        ctx.beginPath(); ctx.ellipse(cx, cy, Math.max(1, radius - 2), 6, 0, 0, Math.PI * 2); ctx.fill();
+        if (radius >= 5) {
+          ctx.save(); ctx.translate(cx, cy); ctx.scale((radius - 1) / 6, 1);
+          ctx.strokeStyle = '#e87508'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.ellipse(0, 0, 5, 5, 0, 0, Math.PI * 2); ctx.stroke();
+          // A bold, embossed center mark keeps the coin readable at small sizes.
+          ctx.fillStyle = '#b64b08';
+          ctx.fillRect(-2, -4, 5, 10); ctx.fillRect(-3, -4, 7, 2);
+          ctx.fillStyle = '#fff16b';
+          ctx.fillRect(-1, -3, 3, 8); ctx.fillRect(-2, -3, 5, 1);
+          ctx.fillStyle = '#f59b0b';
+          ctx.fillRect(1, -2, 1, 7);
+          ctx.restore();
+        }
+        coinTexture.add(frame, 0, x, 0, 18, 18);
+      });
+      coinTexture.refresh();
+      coinTexture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
     for (let variant = 0; variant < 3; variant++) {
       const start = variant * 6;
       for (const [action, frames, rate, repeat] of [
-        ['walk', [start, start + 1, start + 2, start + 3], 8, -1],
+        ['walk', [start, start + 1, start + 2, start + 3], 10, -1],
         ['attack', [start + 4, start + 4, start + 5, start + 5], 6, 0]
       ]) {
         const key = `guardian-${action}-${variant}`;
@@ -357,7 +392,7 @@ export class GameScene extends Phaser.Scene {
       this.anims.create({
         key: 'player-walk',
         frames: playerFrames([5, 6, 7, 8, 9], [24, 25]),
-        frameRate: 10,
+        frameRate: 12,
         repeat: -1
       });
     }
@@ -365,7 +400,7 @@ export class GameScene extends Phaser.Scene {
       this.anims.create({
         key: 'player-idle',
         frames: playerFrames([0, 1, 2, 3, 4], [24]),
-        frameRate: 5,
+        frameRate: 6,
         repeat: -1
       });
     }
@@ -380,18 +415,17 @@ export class GameScene extends Phaser.Scene {
       this.anims.create({
         key: 'enemy-walk',
         frames: this.anims.generateFrameNumbers('packed', { frames: [22, 23] }),
-        frameRate: 4,
+        frameRate: 7,
         repeat: -1
       });
     }
-    if (!this.anims.exists('coin-spin')) {
-      this.anims.create({
-        key: 'coin-spin',
-        frames: this.anims.generateFrameNumbers('packed', { frames: [151, 152] }),
-        frameRate: 6,
-        repeat: -1
-      });
-    }
+    this.anims.remove('coin-spin');
+    this.anims.create({
+      key: 'coin-spin',
+      frames: this.anims.generateFrameNumbers('khmer-coin', { frames: [0, 1, 2, 3, 4, 5] }),
+      frameRate: 10,
+      repeat: -1
+    });
   }
 
   screenText(x, y, message, style) {
@@ -403,37 +437,39 @@ export class GameScene extends Phaser.Scene {
   createHUD() {
     const zoom = this.cameras.main.zoom;
     this.hudContainer = this.add.container(400 - 400 / zoom, 225 - 225 / zoom)
-      .setScale(1 / zoom).setScrollFactor(0).setDepth(200);
-    const values = [
-      ['STAGE', 'levelText', 'LVL ' + this.currentLevel + '/' + TOTAL_LEVELS, '#86d9ce'],
-      ['YOUR SCORE', 'scoreText', 'SCORE: ' + String(this.score).padStart(5, '0'), '#ffffff'],
-      ['COLLECTED', 'coinsText', 'COINS: ' + String(this.coins).padStart(2, '0'), '#ffcf70'],
-      ['LIVES', 'lifeHearts', '', '#ffa99b']
-    ];
-    values.forEach(([title, key, value, color], i) => {
-      const x = 16 + i * 194;
-      const bg = panel(this, x, 12, 186, 51, 0x14243b, 0x3b536f);
-      const caption = label(this, x + (key === 'lifeHearts' ? 78 : 93), 25, title, 9, '#a9bdd1');
-      this[key] = key === 'lifeHearts'
-        ? this.add.graphics({ x: x + 24, y: 34 })
-        : label(this, x + 93, 45, value, 15, color);
-      this.hudContainer.add([bg, caption, this[key]]);
-      if (key !== 'lifeHearts') {
-        const accent = this.add.graphics().lineStyle(1, 0x344d68, 0.8)
-          .lineBetween(x + 14, 58, x + 172, 58);
-        this.hudContainer.add(accent);
-      }
+      .setScale(1 / zoom).setScrollFactor(0).setDepth(200).setAlpha(0);
+    const textStyle = { fontFamily: 'Trebuchet MS, Arial, sans-serif', fontStyle: 'bold',
+      stroke: '#101711', strokeThickness: 6 };
+    const hudText = (x, y, value, size, color) => this.add.text(x, y, value, {
+      ...textStyle, fontSize: `${size}px`, color
+    }).setOrigin(0, 0.5);
+
+    this.lifeHearts = this.add.container(14, 23);
+    this.lifeHeartIcons = Array.from({ length: 3 }, (_, heart) => {
+      const icon = this.add.text(heart * 27, 0, '❤️', {
+        fontFamily: 'Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif',
+        fontSize: '20px', stroke: '#351519', strokeThickness: 2
+      }).setOrigin(0, 0.5);
+      this.lifeHearts.add(icon);
+      return icon;
     });
+    this.levelText = hudText(268, 23, `STAGE ${this.currentLevel}/${TOTAL_LEVELS}`, 13, '#f4f1df');
+    this.scoreText = hudText(370, 23, String(this.score).padStart(5, '0'), 13, '#f4f1df');
+    this.arrowText = hudText(570, 23, `➤ ${this.arrows}`, 14, '#f4f1df');
+    this.coinsText = hudText(676, 23, String(this.coins).padStart(2, '0'), 15, '#fff4dc');
+    this.coinIcon = this.add.image(658, 23, 'khmer-coin', 2).setDisplaySize(19, 19);
+    this.hudContainer.add([this.lifeHearts, this.levelText, this.scoreText, this.arrowText,
+      this.coinIcon, this.coinsText]);
     this.drawLifeHearts();
-    this.extraLivesText = label(this, 730, 45, '', 10, '#86d9ce');
+    this.extraLivesText = hudText(88, 23, '', 11, '#f4f1df');
     this.hudContainer.add(this.extraLivesText);
-    const pauseIcon = this.add.container(762, 43);
+    const pauseIcon = this.add.container(773, 23);
     const pausePlate = this.add.graphics();
-    pausePlate.fillStyle(0x20364e, 1).fillRoundedRect(-14, -14, 28, 28, 7);
-    pausePlate.lineStyle(1, 0x7690a5, 0.9).strokeRoundedRect(-14, -14, 28, 28, 7);
+    pausePlate.fillStyle(0x20364e, 0.88).fillRoundedRect(-12, -12, 24, 24, 5);
+    pausePlate.lineStyle(1, 0xd8d7c9, 0.72).strokeRoundedRect(-11.5, -11.5, 23, 23, 5);
     const pauseMark = this.add.text(0, 0, 'Ⅱ', {
-      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '14px',
-      fontStyle: 'bold', color: '#f1d28e'
+      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
+      fontStyle: 'bold', color: '#f4f1df'
     }).setOrigin(0.5);
     pauseIcon.add([pausePlate, pauseMark]);
     pauseIcon.setSize(30, 30).setInteractive({ useHandCursor: true });
@@ -447,35 +483,16 @@ export class GameScene extends Phaser.Scene {
       fontSize: '12px', fontStyle: 'bold', color: '#ffe19a',
       stroke: '#172338', strokeThickness: 3
     }).setOrigin(0.5).setDepth(220).setAlpha(0);
+    this.tweens.add({ targets: this.hudContainer, alpha: 1,
+      duration: 700, delay: 120, ease: 'Sine.easeOut' });
   }
 
   drawLifeHearts() {
     this.extraLivesText?.setText(this.lives > 3 ? '+' + (this.lives - 3) : '');
-    // Each character is one pixel in the heart: outline, fill, or highlight.
-    const pixels = [
-      '.ooo..ooo.',
-      'ohhhoohhho',
-      'ohhhhhhhho',
-      'offffffffo',
-      '.offffffo.',
-      '..offffo..',
-      '...offo...',
-      '....oo....'
-    ];
-    const graphics = this.lifeHearts;
-    graphics.clear();
-    for (let heart = 0; heart < 3; heart++) {
-      const filled = heart < this.lives;
-      pixels.forEach((row, y) => {
-        [...row].forEach((pixel, x) => {
-          if (pixel === '.' || (!filled && pixel !== 'o')) return;
-          const color = !filled ? 0x607089
-            : pixel === 'o' ? 0x8e3e32
-            : pixel === 'h' ? 0xffa06d : 0xf16b45;
-          graphics.fillStyle(color).fillRect(heart * 31 + x * 2.5, y * 2.5, 2.5, 2.5);
-        });
-      });
-    }
+    this.lifeHeartIcons?.forEach((icon, heart) => {
+      icon.setText(heart < this.lives ? '❤️' : '🤍');
+      icon.setAlpha(heart < this.lives ? 1 : 0.55);
+    });
   }
 
   prepareCoinBlocks(coins) {
@@ -543,7 +560,14 @@ export class GameScene extends Phaser.Scene {
     }
     if (candidates.length) candidates[0].extraLife = true;
     if (this.currentLevel >= 4) {
-      for (const block of this.coinBlocks.values()) block.arrowReward = true;
+      const supplyCandidates = [...this.coinBlocks.values()]
+        .filter(block => !block.extraLife)
+        .sort((a, b) => a.tile.x - b.tile.x);
+      const supplyCount = Math.min(2, supplyCandidates.length);
+      for (let i = 0; i < supplyCount; i++) {
+        const index = Math.floor((i + 0.5) * supplyCandidates.length / supplyCount);
+        supplyCandidates[index].arrowReward = true;
+      }
     }
     const loose = [];
     for (const coin of coins) {
@@ -629,8 +653,9 @@ export class GameScene extends Phaser.Scene {
     this.awardComboPoints(100, tile.pixelX + 9, tile.pixelY - 12);
     this.coins++;
     this.updateHUD();
-    const coin = this.add.sprite(tile.pixelX + 9, tile.pixelY - 4, 'packed', 151);
+    const coin = this.add.sprite(tile.pixelX + 9, tile.pixelY - 4, 'khmer-coin', 2);
     coin.play('coin-spin');
+    this.playCoinFeedback(coin.x, coin.y);
     this.tweens.add({ targets: coin, y: coin.y - 24, alpha: 0, duration: 450,
       onComplete: () => coin.destroy() });
     this.tweens.add({ targets: block.image, y: tile.pixelY + 5, duration: 90,
@@ -653,6 +678,52 @@ export class GameScene extends Phaser.Scene {
     this.awardComboPoints(100, coin.x, coin.y - 8);
     this.coins += 1;
     this.updateHUD();
+    this.playCoinFeedback(coin.x, coin.y);
+  }
+
+  playCoinFeedback(x, y) {
+    // A quick gold burst makes every pickup feel rewarding without obscuring play.
+    const ring = this.add.circle(x, y, 5, 0xffd52e, 0).setStrokeStyle(1.5, 0xffb31a, 1).setDepth(120);
+    this.tweens.add({ targets: ring, scale: 2.6, alpha: 0, duration: 240,
+      ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
+    for (let i = 0; i < 7; i++) {
+      const angle = Phaser.Math.DegToRad(i * (360 / 7));
+      const sparkle = this.add.star(x, y, 4, 1.5, 3.5, 0xffe66b).setDepth(121);
+      this.tweens.add({
+        targets: sparkle,
+        x: x + Math.cos(angle) * 15,
+        y: y + Math.sin(angle) * 15,
+        alpha: 0,
+        angle: Phaser.Math.Between(-100, 100),
+        scale: 0.25,
+        duration: 260,
+        ease: 'Cubic.easeOut',
+        onComplete: () => sparkle.destroy()
+      });
+    }
+    this.tweens.killTweensOf([this.coinIcon, this.coinsText]);
+    this.coinIcon.setScale(1);
+    this.coinsText.setScale(1);
+    this.tweens.add({ targets: [this.coinIcon, this.coinsText], scale: 1.3,
+      duration: 90, yoyo: true, ease: 'Back.easeOut' });
+  }
+
+  createLandingPuff() {
+    const groundY = this.player.body.bottom - 2;
+    for (const side of [-1, 1]) {
+      const puff = this.add.ellipse(this.player.x + side * 5, groundY, 4, 2, 0xf4d69a, 0.75)
+        .setDepth(12);
+      this.tweens.add({
+        targets: puff,
+        x: puff.x + side * Phaser.Math.Between(5, 9),
+        y: puff.y - Phaser.Math.Between(2, 5),
+        scaleX: 1.6,
+        alpha: 0,
+        duration: 220,
+        ease: 'Sine.easeOut',
+        onComplete: () => puff.destroy()
+      });
+    }
   }
 
   awardComboPoints(basePoints, x, y) {
@@ -693,11 +764,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateHUD() {
-    this.levelText.setText('LVL ' + this.currentLevel + '/' + TOTAL_LEVELS);
-    this.scoreText.setText('SCORE: ' + String(this.score).padStart(5, '0'));
-    this.coinsText.setText('COINS: ' + String(this.coins).padStart(2, '0'));
+    this.levelText.setText(`STAGE ${this.currentLevel}/${TOTAL_LEVELS}`);
+    this.scoreText.setText(String(this.score).padStart(5, '0'));
+    this.coinsText.setText(String(this.coins).padStart(2, '0'));
     this.drawLifeHearts();
-    this.arrowText?.setText(`ARROWS: ${this.arrows}  |  F: SHOOT  |  B: BOW`);
+    this.arrowText?.setText(`➤ ${this.arrows}`);
   }
 
   handlePlayerEnemyCollision(player, enemy, forceDamage = false) {
@@ -765,6 +836,14 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.currentLevel === 2 && !this.templeSwitchActivated) {
+      if (this.time.now >= this.nextGateHintAt) {
+        this.showFloatingText(player.x, player.y - 24,
+          'Step on the lotus switch to open the Angkor gate!', '#ffe3a1');
+        this.nextGateHintAt = this.time.now + 1400;
+      }
+      return;
+    }
     if (this.boss?.active && this.boss.health > 0) {
       if (this.time.now >= (this.nextBossWarning || 0)) {
         this.showFloatingText(player.x, player.y - 25, 'Defeat the guardian first!', '#ffb4a9');
@@ -896,24 +975,25 @@ export class GameScene extends Phaser.Scene {
     const jump = touchControls.jump || (this.cursors && (this.cursors.up.isDown || (this.wasd && (this.wasd.up.isDown || this.wasd.space.isDown))));
     const moveSpeed = this.currentLevel === TOTAL_LEVELS && this.sprintKey?.isDown ? 230 : 150;
 
+    let targetVelocityX = 0;
     if (left) {
-      this.player.setVelocityX(-moveSpeed);
+      targetVelocityX = -moveSpeed;
       this.player.setFlipX(true);
       if (this.player.body.blocked.down) {
         this.player.play('player-walk', true);
       }
     } else if (right) {
-      this.player.setVelocityX(moveSpeed);
+      targetVelocityX = moveSpeed;
       this.player.setFlipX(false);
       if (this.player.body.blocked.down) {
         this.player.play('player-walk', true);
       }
     } else {
-      this.player.setVelocityX(0);
       if (this.player.body.blocked.down) {
         this.player.play('player-idle', true);
       }
     }
+    this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, 0.32));
 
     if (jump && this.player.body.blocked.down) {
       this.player.setVelocityY(-350);
@@ -924,6 +1004,10 @@ export class GameScene extends Phaser.Scene {
     if (!this.player.body.blocked.down) {
       this.player.play('player-jump', true);
     }
+
+    const grounded = this.player.body.blocked.down;
+    if (this.wasPlayerAirborne && grounded) this.createLandingPuff();
+    this.wasPlayerAirborne = !grounded;
 
     updateBowPose(this);
 

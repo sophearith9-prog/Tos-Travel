@@ -1,5 +1,6 @@
 import { TOTAL_LEVELS } from './levels/provinceRoute.js';
 import { retireRock } from './combat.js';
+import { addArrowAmmo, MAX_ARROW_AMMO } from './arrowRules.js';
 
 export function installFinalBoss(scene) {
   scene.boss = null;
@@ -29,13 +30,14 @@ export function installFinalBoss(scene) {
   scene.physics.add.overlap(scene.player, scene.bossArrowDrops, (player, pickup) => {
     if (!pickup.active || scene.isLevelFinished) return;
     pickup.destroy();
-    scene.arrows += 5;
+    const gained = addArrowAmmo(scene, 3);
     scene.updateHUD();
-    scene.showFloatingText(player.x, player.y - 20, '+5 ARROWS', '#87d7ca');
+    scene.showFloatingText(player.x, player.y - 20,
+      gained ? `+${gained} ARROWS` : 'QUIVER FULL', '#87d7ca');
   });
   drawBossHealth(scene);
   // Starting ammunition, replenished by the guardian's timed drops.
-  scene.arrows = Math.max(scene.arrows, 18);
+  scene.arrows = Math.min(MAX_ARROW_AMMO, Math.max(scene.arrows, 18));
   scene.updateHUD();
 }
 
@@ -86,7 +88,7 @@ export function updateFinalBoss(scene, boss, now) {
   if (!boss.active || boss.health <= 0 || scene.isLevelFinished) return;
   if (now >= boss.nextArrowDrop) {
     boss.nextArrowDrop = now + 20000;
-    dropBossArrows(scene, boss);
+    if (scene.arrows < MAX_ARROW_AMMO) dropBossArrows(scene, boss);
   }
   const body = boss.body, player = scene.player;
   const dx = player.x - boss.x;
@@ -94,7 +96,9 @@ export function updateFinalBoss(scene, boss, now) {
   if (!boss.awake) { boss.setVelocityX(0); return; }
   const direction = dx >= 0 ? 1 : -1;
   boss.setFlipX(direction > 0);
-  boss.setVelocityX(Math.abs(dx) > 35 ? direction * 140 : 0);
+  // Keep pressure on a running player; sprinting still lets them create space.
+  const chaseSpeed = 180;
+  boss.setVelocityX(Math.abs(dx) > 35 ? direction * chaseSpeed : 0);
   if (body.top > scene.map.heightInPixels) {
     // The guardian recovers from pits instead of disappearing and locking the exit.
     let col = Math.max(3, Math.min(scene.map.width - 20, Math.floor(player.x / 18) + direction * 8));

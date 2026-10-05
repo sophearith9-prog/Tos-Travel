@@ -1,8 +1,11 @@
 import { touchControls } from './mobileControls.js';
 import { damageBoss, updateFinalBoss } from './finalBoss.js';
+import { addArrowAmmo, MAX_ARROW_AMMO } from './arrowRules.js';
+import { TOTAL_LEVELS } from './levels/provinceRoute.js';
 
 export function installCombat(scene) {
-  scene.arrows = Math.max(0, scene.currentLevel >= 4 ? (scene.arrows || 0) : 0);
+  scene.arrows = Math.min(MAX_ARROW_AMMO,
+    Math.max(0, scene.currentLevel >= 4 ? (scene.arrows || 0) : 0));
   scene.nextShot = 0;
   scene.arrowProjectiles = scene.physics.add.group({ allowGravity: false });
   scene.rockProjectiles = scene.physics.add.group();
@@ -131,7 +134,8 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
   } else if (body.blocked.left || body.blocked.right) {
     enemy.patrolDirection = body.blocked.left ? 1 : -1;
   }
-  enemy.setVelocityX((enemy.airSpeed || speed) * enemy.patrolDirection);
+  const targetSpeed = (enemy.airSpeed || speed) * enemy.patrolDirection;
+  enemy.setVelocityX(Phaser.Math.Linear(body.velocity.x, targetSpeed, 0.28));
   enemy.setFlipX(enemy.patrolDirection > 0);
   enemy.play(enemy.texture.key === 'enemy-guardians'
     ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk', true);
@@ -175,9 +179,10 @@ export function retireRock(scene, rock) {
 export function grantBoxArrows(scene, block) {
   if (scene.currentLevel < 4 || block.arrowClaimed) return;
   block.arrowClaimed = true;
-  scene.arrows += 3;
+  const gained = addArrowAmmo(scene, 2);
   scene.updateHUD();
-  scene.showFloatingText(block.tile.pixelX + 9, block.tile.pixelY - 25, '+3 ARROWS', '#87d7ca');
+  scene.showFloatingText(block.tile.pixelX + 9, block.tile.pixelY - 25,
+    gained ? `+${gained} ARROWS` : 'QUIVER FULL', '#87d7ca');
 }
 
 export function shootBow(scene) {
@@ -185,7 +190,9 @@ export function shootBow(scene) {
   scene.nextShot = scene.time.now + 400;
   scene.bowDrawUntil = scene.time.now + 180;
   scene.arrows--;
-  const direction = scene.player.flipX ? -1 : 1;
+  const direction = scene.currentLevel === TOTAL_LEVELS && scene.boss?.active
+    ? (scene.boss.x < scene.player.x ? -1 : 1)
+    : (scene.player.flipX ? -1 : 1);
   const arrow = scene.arrowProjectiles.create(scene.player.x + direction * 17, scene.player.body.center.y, 'bow-arrow');
   arrow.setFlipX(direction < 0).setDepth(11).setVelocityX(direction * 340);
   arrow.body.setSize(20, 4).setOffset(2, 2);
