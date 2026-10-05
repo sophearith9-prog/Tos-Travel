@@ -36,9 +36,8 @@ export function installCombat(scene) {
     retireRock(scene, arrow);
     if (enemy.isBoss) { damageBoss(scene, enemy); return; }
     enemy.disableBody(true, true);
-    scene.score += 200;
+    scene.awardComboPoints(200, enemy.x, enemy.y - 12);
     scene.updateHUD();
-    scene.showFloatingText(enemy.x, enemy.y - 12, '+200', '#86efac');
     enemy.destroy();
   });
   scene.bow = scene.add.graphics().setDepth(12).setVisible(false);

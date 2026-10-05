@@ -1,5 +1,6 @@
-import { panel, label, button, playSound } from '../ui.js';
+﻿import { panel, label, button, playSound } from '../ui.js';
 import { audioSettings } from '../audioSettings.js';
+import { showStageClear } from '../levelClear.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { prepareEnvironment, addEnvironment } from '../environment.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
@@ -29,6 +30,8 @@ export class GameScene extends Phaser.Scene {
     this.levelStartScore = this.score;
     this.levelStartCoins = this.coins;
     this.lives = data.lives !== undefined ? data.lives : 3;
+    this.comboCount = 0;
+    this.comboExpiresAt = 0;
     this.isInvulnerable = false;
     this.isLevelFinished = false;
     this.isSlidingDownFlag = false;
@@ -48,6 +51,7 @@ export class GameScene extends Phaser.Scene {
     this.load.image('environment-palm', 'assets/sugar-palm-pixel.png');
     this.load.image('extra-life-food', 'assets/orn-sorm-jruk.png');
     if (this.currentLevel === 1) {
+      //this.load.audio('rooster-morning', 'assets/audio/roostermorning_sound.mp3');
       this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
       this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
       //this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
@@ -279,6 +283,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createHUD();
     this.showLevelIntroBanner(config.title);
+    if (this.currentLevel === 1) this.time.delayedCall(450, () => playSound(this, 'rooster-morning', { volume: 0.7 }));
     installCombat(this);
     installFinalBoss(this);
     if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
@@ -407,21 +412,41 @@ export class GameScene extends Phaser.Scene {
     ];
     values.forEach(([title, key, value, color], i) => {
       const x = 16 + i * 194;
-      const bg = panel(this, x, 12, 186, 51);
-      const caption = label(this, x + 93, 25, title, 9, '#93a9c1');
+      const bg = panel(this, x, 12, 186, 51, 0x14243b, 0x3b536f);
+      const caption = label(this, x + (key === 'lifeHearts' ? 78 : 93), 25, title, 9, '#a9bdd1');
       this[key] = key === 'lifeHearts'
-        ? this.add.graphics({ x: x + 44, y: 34 })
+        ? this.add.graphics({ x: x + 24, y: 34 })
         : label(this, x + 93, 45, value, 15, color);
       this.hudContainer.add([bg, caption, this[key]]);
+      if (key !== 'lifeHearts') {
+        const accent = this.add.graphics().lineStyle(1, 0x344d68, 0.8)
+          .lineBetween(x + 14, 58, x + 172, 58);
+        this.hudContainer.add(accent);
+      }
     });
     this.drawLifeHearts();
-    this.extraLivesText = label(this, 763, 45, '', 11, '#86d9ce');
+    this.extraLivesText = label(this, 730, 45, '', 10, '#86d9ce');
     this.hudContainer.add(this.extraLivesText);
-    this.drawLifeHearts();
-    this.pauseButton = button(this, 729, 91, 112, 'II  Pause', () => this.pauseGame());
+    const pauseIcon = this.add.container(762, 43);
+    const pausePlate = this.add.graphics();
+    pausePlate.fillStyle(0x20364e, 1).fillRoundedRect(-14, -14, 28, 28, 7);
+    pausePlate.lineStyle(1, 0x7690a5, 0.9).strokeRoundedRect(-14, -14, 28, 28, 7);
+    const pauseMark = this.add.text(0, 0, 'Ⅱ', {
+      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '14px',
+      fontStyle: 'bold', color: '#f1d28e'
+    }).setOrigin(0.5);
+    pauseIcon.add([pausePlate, pauseMark]);
+    pauseIcon.setSize(30, 30).setInteractive({ useHandCursor: true });
+    pauseIcon.on('pointerover', () => pauseIcon.setScale(1.1));
+    pauseIcon.on('pointerout', () => pauseIcon.setScale(1));
+    pauseIcon.on('pointerdown', () => this.pauseGame());
     // Input checks the interactive child's scroll factor, not just its HUD parent.
-    this.pauseButton.setScrollFactor(0);
-    this.hudContainer.add(this.pauseButton);
+    pauseIcon.setScrollFactor(0);
+    this.hudContainer.add(pauseIcon);
+    this.comboText = this.screenText(400, 77, '', {
+      fontSize: '12px', fontStyle: 'bold', color: '#ffe19a',
+      stroke: '#172338', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(220).setAlpha(0);
   }
 
   drawLifeHearts() {
@@ -447,7 +472,7 @@ export class GameScene extends Phaser.Scene {
           const color = !filled ? 0x607089
             : pixel === 'o' ? 0x8e3e32
             : pixel === 'h' ? 0xffa06d : 0xf16b45;
-          graphics.fillStyle(color).fillRect(heart * 35 + x * 2.75, y * 2.75, 2.75, 2.75);
+          graphics.fillStyle(color).fillRect(heart * 31 + x * 2.5, y * 2.5, 2.5, 2.5);
         });
       });
     }
@@ -601,7 +626,7 @@ export class GameScene extends Phaser.Scene {
     block.coins--;
     if (!block.coins) block.image.setTexture((this.currentLevel === 2 || this.currentLevel === 3) ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
     playSound(this, 'coin', { volume: 0.4 });
-    this.score += 100;
+    this.awardComboPoints(100, tile.pixelX + 9, tile.pixelY - 12);
     this.coins++;
     this.updateHUD();
     const coin = this.add.sprite(tile.pixelX + 9, tile.pixelY - 4, 'packed', 151);
@@ -610,7 +635,6 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => coin.destroy() });
     this.tweens.add({ targets: block.image, y: tile.pixelY + 5, duration: 90,
       yoyo: true });
-    this.showFloatingText(tile.pixelX + 9, tile.pixelY - 12, '+100', '#ffd700');
   }
 
   collectLifeItem(player, food) {
@@ -626,10 +650,28 @@ export class GameScene extends Phaser.Scene {
   collectCoin(player, coin) {
     coin.disableBody(true, true);
     playSound(this, 'coin', { volume: 0.4 });
-    this.score += 100;
+    this.awardComboPoints(100, coin.x, coin.y - 8);
     this.coins += 1;
     this.updateHUD();
-    this.showFloatingText(coin.x, coin.y - 8, '+100', '#ffd700');
+  }
+
+  awardComboPoints(basePoints, x, y) {
+    const now = this.time.now;
+    this.comboCount = now <= this.comboExpiresAt ? this.comboCount + 1 : 1;
+    this.comboExpiresAt = now + 2400;
+    const multiplier = Math.min(5, 1 + Math.floor((this.comboCount - 1) / 2));
+    const points = basePoints * multiplier;
+    this.score += points;
+    if (this.comboCount > 1) {
+      this.showFloatingText(x, y, `${this.comboCount} CHAIN  +${points}`, multiplier > 1 ? '#ffcf70' : '#ffe39a');
+      this.comboText.setText(`COMBO ${this.comboCount}  Â·  x${multiplier}`).setAlpha(1);
+      this.tweens.killTweensOf(this.comboText);
+      this.tweens.add({ targets: this.comboText, alpha: 0.35, duration: 900, delay: 800 });
+    } else {
+      this.showFloatingText(x, y, `+${points}`, '#ffd700');
+      this.comboText.setAlpha(0);
+    }
+    return points;
   }
 
   showFloatingText(x, y, message, color) {
@@ -669,9 +711,8 @@ export class GameScene extends Phaser.Scene {
       player.setVelocityY(-260);
       // The final guardian requires arrow hits; stomping only bounces the player.
       if (enemy.isBoss) return;
-      this.score += 200;
+      this.awardComboPoints(200, enemy.x, enemy.y - 8);
       this.updateHUD();
-      this.showFloatingText(enemy.x, enemy.y - 8, '+200', '#4ade80');
 
       enemy.disableBody(true, false);
       enemy.setAlpha(0.6);
@@ -679,6 +720,14 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(200, () => enemy.destroy());
     } else {
       if (this.isInvulnerable) return;
+
+      if (this.comboCount > 1) {
+        this.comboText?.setText('COMBO LOST').setAlpha(1);
+        this.tweens.killTweensOf(this.comboText);
+        this.tweens.add({ targets: this.comboText, alpha: 0, duration: 350, delay: 450 });
+      }
+      this.comboCount = 0;
+      this.comboExpiresAt = 0;
 
       // Play an impact cue for every damaging enemy contact; invulnerable overlaps return above.
       playSound(this, 'stomp', { volume: 0.72, rate: 1.05 });
@@ -793,10 +842,8 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     if (this.currentLevel !== 2) this.player.setVisible(false);
 
-    // Spawn 4 celebration fireworks above the castle
     const castleCenter = this.currentLevel === 2 ? this.flagX : (this.map.width - 7) * 18 + 9;
     const colors = ['#ffd700', '#ff3366', '#33ccff', '#33ff66'];
-
     for (let f = 0; f < 4; f++) {
       this.time.delayedCall(f * 350, () => {
         const fx = castleCenter + (Math.random() * 40 - 20);
@@ -804,56 +851,8 @@ export class GameScene extends Phaser.Scene {
         this.createFireworkSparkles(fx, fy, colors[f % colors.length]);
       });
     }
-
-    // Display Finish Clear Banner
-    this.time.delayedCall(400, () => {
-      const banner = this.screenText(400, 160, 'â˜… LEVEL ' + this.currentLevel + ' COMPLETE! â˜…', {
-        fontSize: '24px',
-        color: '#ffd700',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 5,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        padding: { left: 20, right: 20, top: 10, bottom: 10 }
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(400);
-
-      const bonusText = this.screenText(400, 210, 'CLEAR BONUS: +500 PTS', {
-        fontSize: '18px',
-        color: '#4ade80',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 3
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(400);
-
-      this.tweens.add({
-        targets: [banner, bonusText],
-        scale: { from: 0.9 / this.cameras.main.zoom, to: 1 / this.cameras.main.zoom },
-        duration: 400,
-        yoyo: true,
-        repeat: 2
-      });
-    });
-
-    // Advance to next level or Victory Scene
-    this.time.delayedCall(2600, () => {
-      if (this.currentLevel < TOTAL_LEVELS) {
-        this.scene.start('GameScene', {
-          level: this.currentLevel + 1,
-          score: this.score,
-          coins: this.coins,
-          lives: this.lives,
-          arrows: this.arrows
-        });
-      } else {
-        this.scene.start('VictoryScene', {
-          level: TOTAL_LEVELS,
-          score: this.score + 1000,
-          coins: this.coins
-        });
-      }
-    });
+    this.time.delayedCall(520, () => showStageClear(this));
   }
-
   createFireworkSparkles(x, y, color) {
     // Spawn 12 expanding particle sparks
     for (let p = 0; p < 12; p++) {
@@ -879,6 +878,11 @@ export class GameScene extends Phaser.Scene {
 
   update() {
     if (!this.player) return;
+
+    if (this.comboCount && this.time.now > this.comboExpiresAt) {
+      this.comboCount = 0;
+      this.comboText?.setAlpha(0);
+    }
 
     if (this.isLevelFinished) return;
 

@@ -72,10 +72,9 @@ export function damageBoss(scene, boss) {
   if (boss.health === 0) {
     boss.disableBody(true, true);
     scene.rockProjectiles.clear(true, true);
-    scene.score += 2000;
+    scene.awardComboPoints(2000, boss.x, boss.y - 40);
     scene.updateHUD();
     scene.bossHealthText.setText('GUARDIAN DEFEATED — REACH THE FLAG!');
-    scene.showFloatingText(boss.x, boss.y - 40, '+2000', '#ffd700');
     boss.destroy();
   } else {
     boss.setTint(0xff7777);

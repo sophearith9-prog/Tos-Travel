@@ -22,19 +22,19 @@ export function addCambodiaJourney(scene, map) {
   if (!scene.textures.exists(key)) {
     const texture = scene.textures.createCanvas(key, width, map.heightInPixels);
     const ctx = texture.context;
-    // Match the home screen's dusk palette: indigo above, coral and gold at the horizon.
+    // A clear Cambodian morning: cool blue sky, soft clouds, and warm sunrise light.
     const sky = ctx.createLinearGradient(0, 0, 0, 198);
-    sky.addColorStop(0, '#30273c');
-    sky.addColorStop(0.38, '#65404e');
-    sky.addColorStop(0.72, '#c85e4c');
-    sky.addColorStop(1, '#f1ad68');
+    sky.addColorStop(0, '#78bfe0');
+    sky.addColorStop(0.38, '#a9d9e5');
+    sky.addColorStop(0.72, '#f4d79b');
+    sky.addColorStop(1, '#fff0c4');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, width, 198);
-    // Soft cloud ribbons catch the same warm light as the Angkor sunset on the title screen.
+    // Pale cloud ribbons catch the early morning sun.
     ctx.lineCap = 'round';
     for (let i = 0; i < 7; i++) {
       const x = 70 + i * (width - 140) / 7;
       const y = 44 + (i % 3) * 23;
-      ctx.strokeStyle = i % 2 ? 'rgba(246, 179, 124, .18)' : 'rgba(255, 213, 157, .2)';
+      ctx.strokeStyle = i % 2 ? 'rgba(255, 255, 255, .32)' : 'rgba(255, 255, 255, .42)';
       ctx.lineWidth = 3 + (i % 2);
       ctx.beginPath(); ctx.moveTo(x, y);
       ctx.quadraticCurveTo(x + 24, y - 8, x + 54, y);
@@ -42,18 +42,18 @@ export function addCambodiaJourney(scene, map) {
     }
     const sunX = width - 210;
     const sunGlow = ctx.createRadialGradient(sunX, 75, 9, sunX, 75, 64);
-    sunGlow.addColorStop(0, 'rgba(255, 225, 160, .82)');
-    sunGlow.addColorStop(1, 'rgba(255, 192, 112, 0)');
+    sunGlow.addColorStop(0, 'rgba(255, 244, 194, .9)');
+    sunGlow.addColorStop(1, 'rgba(255, 226, 154, 0)');
     ctx.fillStyle = sunGlow; ctx.fillRect(sunX - 66, 9, 132, 132);
-    ctx.fillStyle = '#ffe5a3'; ctx.beginPath();
+    ctx.fillStyle = '#fff2bb'; ctx.beginPath();
     ctx.arc(sunX, 75, 29, 0, Math.PI * 2); ctx.fill();
     // Soft tree line unifies the countryside and the temple approach.
-    ctx.fillStyle = '#655b56';
+    ctx.fillStyle = '#718c70';
     for (let x = -30; x < width + 30; x += 35) {
       ctx.beginPath(); ctx.ellipse(x, 154, 38, 15 + (x % 3) * 3, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = '#9c805c'; ctx.fillRect(0, 159, width, 37);
-    ctx.strokeStyle = '#d7a66b'; ctx.lineWidth = 2;
+    ctx.fillStyle = '#a8b777'; ctx.fillRect(0, 159, width, 37);
+    ctx.strokeStyle = '#d5ce8f'; ctx.lineWidth = 2;
     for (let y = 165; y < 194; y += 9) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
     }
@@ -62,9 +62,9 @@ export function addCambodiaJourney(scene, map) {
     }
     // Raised wooden homes amongst the rice fields at the beginning.
     for (const x of [160, 450, 730]) {
-      ctx.fillStyle = '#9f8966'; ctx.fillRect(x, 135, 35, 21);
+      ctx.fillStyle = '#b79d70'; ctx.fillRect(x, 135, 35, 21);
       ctx.fillStyle = '#806e56'; ctx.fillRect(x + 4, 156, 3, 12); ctx.fillRect(x + 28, 156, 3, 12);
-      ctx.fillStyle = '#ac795c'; ctx.beginPath(); ctx.moveTo(x - 5, 136);
+      ctx.fillStyle = '#a8664b'; ctx.beginPath(); ctx.moveTo(x - 5, 136);
       ctx.lineTo(x + 17, 119); ctx.lineTo(x + 40, 136); ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#655e4c'; ctx.fillRect(x + 14, 142, 8, 14);
     }
