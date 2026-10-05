@@ -1,4 +1,5 @@
 import { installFullscreen } from './fullscreen.js';
+import { IntroScene } from './scenes/IntroScene.js';
 import { MainMenuScene } from './scenes/MainMenuScene.js';
 import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
@@ -28,7 +29,7 @@ const config = {
     pixelArt: true,
     antialias: false
   },
-  scene: [MainMenuScene, LevelSelectScene, GameScene, GameOverScene, VictoryScene, PauseScene]
+  scene: [IntroScene, MainMenuScene, LevelSelectScene, GameScene, GameOverScene, VictoryScene, PauseScene]
 };
 
 export const game = new Phaser.Game(config);
