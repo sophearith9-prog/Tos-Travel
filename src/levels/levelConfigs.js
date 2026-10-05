@@ -3,7 +3,7 @@ import { createProvinceLevel } from './provinceLevels.js';
 
 export const LEVEL_CONFIGS = {
   1: {
-    title: 'Banteay Chhmar Journey - Angor Wat',
+    title: 'Banteay Meanchey Journey - Angor Wat',
     skyColor: '#879c86',
     enemySpeed: 40,
     coins: [

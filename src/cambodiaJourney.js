@@ -1,4 +1,6 @@
 // An illustrated journey, rather than a geographic map, exclusive to level 1.
+import { addLivingMorning } from './levelOneAnimations.js';
+
 function addLandmarkLabel(scene, x, y, title, subtitle) {
   const width = Math.max(title.length * 6.3, subtitle.length * 5.7, 100) + 18;
   const plate = scene.add.graphics().setDepth(-10);
@@ -29,6 +31,27 @@ export function addCambodiaJourney(scene, map) {
     sky.addColorStop(0.72, '#f4d79b');
     sky.addColorStop(1, '#fff0c4');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, width, 198);
+    // Continue the landscape below the horizon so the camera never reveals a black void.
+    const lowerFields = ctx.createLinearGradient(0, 198, 0, map.heightInPixels);
+    lowerFields.addColorStop(0, '#91a678');
+    lowerFields.addColorStop(0.25, '#627f61');
+    lowerFields.addColorStop(1, '#243d3e');
+    ctx.fillStyle = lowerFields;
+    ctx.fillRect(0, 198, width, map.heightInPixels - 198);
+    ctx.fillStyle = 'rgba(191, 190, 128, .24)';
+    for (let x = -40; x < width + 80; x += 115) {
+      ctx.beginPath();
+      ctx.ellipse(x, 218 + (x % 4) * 3, 74, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (let y = 207; y < map.heightInPixels; y += 12) {
+      ctx.strokeStyle = y % 2 ? 'rgba(226, 210, 144, .28)' : 'rgba(30, 66, 58, .34)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.quadraticCurveTo(width * 0.48, y - 4, width, y + 2);
+      ctx.stroke();
+    }
     // Pale cloud ribbons catch the early morning sun.
     ctx.lineCap = 'round';
     for (let i = 0; i < 7; i++) {
@@ -40,7 +63,7 @@ export function addCambodiaJourney(scene, map) {
       ctx.quadraticCurveTo(x + 24, y - 8, x + 54, y);
       ctx.quadraticCurveTo(x + 77, y + 6, x + 102, y - 1); ctx.stroke();
     }
-    const sunX = width - 210;
+    const sunX = 260;
     const sunGlow = ctx.createRadialGradient(sunX, 75, 9, sunX, 75, 64);
     sunGlow.addColorStop(0, 'rgba(255, 244, 194, .9)');
     sunGlow.addColorStop(1, 'rgba(255, 226, 154, 0)');
@@ -85,14 +108,6 @@ export function addCambodiaJourney(scene, map) {
     for (const [x, y] of [[1650, 177], [1740, 169], [1810, 184]]) {
       ctx.fillStyle = '#638d63'; ctx.beginPath(); ctx.ellipse(x, y, 9, 3, -0.2, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#ddbe79'; ctx.beginPath(); ctx.arc(x + 1, y - 2, 2, 0, Math.PI * 2); ctx.fill();
-    }
-    // Small elegant waterbirds in flight above the wetland.
-    for (const [x, y] of [[1660, 117], [1725, 103], [1790, 122]]) {
-      ctx.strokeStyle = '#645b48'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x - 7, y); ctx.quadraticCurveTo(x - 3, y - 6, x, y);
-      ctx.quadraticCurveTo(x + 4, y - 6, x + 8, y); ctx.stroke();
-      ctx.fillStyle = '#766b51'; ctx.beginPath(); ctx.arc(x, y + 2, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(x + 2, y + 2); ctx.lineTo(x + 7, y + 4); ctx.lineTo(x + 3, y + 4); ctx.fill();
     }
     // Community gardens and flower beds outside Serei Saophoan.
     ctx.fillStyle = '#9ead76'; ctx.fillRect(1980, 158, 260, 40);
@@ -160,6 +175,7 @@ export function addCambodiaJourney(scene, map) {
     texture.refresh();
   }
   scene.add.image(0, 0, key).setOrigin(0).setDepth(-20);
+  addLivingMorning(scene, width);
   // Tuck the irregular image edges behind the grass so the rocks meet the land.
   const groundY = 11 * map.tileHeight;
   const mountainBaseY = groundY + 6;
@@ -183,5 +199,5 @@ export function addCambodiaJourney(scene, map) {
     const mountain = scene.add.image(605, mountainBaseY, 'kla-kon-mountain').setOrigin(0.5, 1).setDepth(-15);
     mountain.setScale(165 / mountain.height);
   }
-  addLandmarkLabel(scene, 605, mountainBaseY - 8, 'KLA KON MOUNTAIN', 'ភ្នំគូលែន');
+  //addLandmarkLabel(scene, 605, mountainBaseY - 8, 'KLA KON MOUNTAIN', 'ភ្នំគូលែន');
 }

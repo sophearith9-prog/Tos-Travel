@@ -54,8 +54,8 @@ export class GameScene extends Phaser.Scene {
     this.load.image('extra-life-food', 'assets/orn-sorm-jruk.png');
     if (this.currentLevel === 1) {
       //this.load.audio('rooster-morning', 'assets/audio/roostermorning_sound.mp3');
-      this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
-      this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
+      //this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
+      //this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
       //this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
       this.load.image('angkor-wat-finish', 'assets/angkor-wat-finish.png');
     }
@@ -622,15 +622,12 @@ export class GameScene extends Phaser.Scene {
       const food = this.lifeItems.create(tile.pixelX + 9, tile.pixelY + 9, 'extra-life-food')
         .setDisplaySize(25, 25).setDepth(10);
       const nameplate = this.add.container(food.x, food.y + 18).setDepth(11);
-      const plaque = this.add.graphics();
-      plaque.fillStyle(0x17271f, 0.96).fillRoundedRect(-61, -10, 122, 20, 4);
-      plaque.lineStyle(1, 0xe4bd69, 0.95).strokeRoundedRect(-61, -10, 122, 20, 4);
       const nameLabel = this.add.text(0, 0, 'Ansorm Jruk', {
         fontFamily: 'Arial, Trebuchet MS, sans-serif', fontSize: '8px', fontStyle: 'bold',
-        color: '#fff2cf', stroke: '#17271f', strokeThickness: 1,
+        color: '#fff2cf', stroke: 'none', strokeThickness: 1,
         align: 'center', padding: { x: 4, y: 2 }
       }).setOrigin(0.5).setResolution(4);
-      nameplate.add([plaque, nameLabel]);
+      nameplate.add(nameLabel);
       const followFood = () => nameplate.setPosition(food.x, food.y + food.displayHeight / 2 + 4);
       this.events.on('postupdate', followFood);
       food.once('destroy', () => {
