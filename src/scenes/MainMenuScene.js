@@ -27,35 +27,29 @@ export class MainMenuScene extends Phaser.Scene {
       }
     }
 
-    // Text sits on a quiet, carved-looking plaque while the temple vista fills the right.
-    const plaque = this.add.graphics();
-    plaque.fillStyle(0x101c2b, 0.88).fillRoundedRect(36, 72, 347, 319, 18);
-    plaque.lineStyle(1, 0xc49a60, 0.7).strokeRoundedRect(36, 72, 347, 319, 18);
-    plaque.lineStyle(1, 0x42566a, 0.75).strokeRoundedRect(42, 78, 335, 307, 14);
-    this.drawPlaqueFlowers(plaque);
-
-    label(this, 155, 101, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#d8b77d');
-    this.add.text(66, 132, 'ANGKOR', {
+    label(this, 155, 91, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#d8b77d');
+    this.add.text(66, 105, 'ANGKOR', {
       fontFamily: 'Georgia, serif', fontSize: '42px',
       fontStyle: 'bold', color: '#fff0d1', letterSpacing: 1
     });
-    this.add.text(68, 176, 'ADVENTURE', {
+    this.add.text(68, 145, 'ADVENTURE', {
       fontFamily: 'Georgia, serif', fontSize: '27px',
       fontStyle: 'bold', color: '#f3c978', letterSpacing: 3
     });
     const divider = this.add.graphics();
-    divider.lineStyle(1, 0xb68a52, 0.85).lineBetween(68, 218, 345, 218);
+    const dividerY = 195;
+    divider.lineStyle(1, 0xb68a52, 0.85).lineBetween(68, dividerY, 345, dividerY);
     divider.fillStyle(0xe5c47e).fillPoints([
-      { x: 206, y: 213 }, { x: 211, y: 218 },
-      { x: 206, y: 223 }, { x: 201, y: 218 }
+      { x: 206, y: dividerY - 5 }, { x: 211, y: dividerY },
+      { x: 206, y: dividerY + 5 }, { x: 201, y: dividerY }
     ], true);
-    this.add.text(69, 235, 'A little courage. A journey across Cambodia.\nExplore 24 provinces, the capital, and hidden treasures.', {
+    this.add.text(69, 220, 'A little courage. A journey across Cambodia.\nExplore 24 provinces, the capital, and hidden treasures.', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
       color: '#d0c2aa', lineSpacing: 6, wordWrap: { width: 277 }
     });
     const start = () => this.scene.start('GameScene', { level: 1, score: 0, coins: 0, lives: 3 });
-    button(this, 207, 321, 274, 'BEGIN JOURNEY  >', start, true);
-    const choose = button(this, 207, 371, 274, 'CHOOSE A STAGE', () => this.scene.start('LevelSelectScene'));
+    button(this, 207, 315, 274, 'BEGIN JOURNEY  >', start, true);
+    const choose = button(this, 207, 365, 274, 'CHOOSE A STAGE', () => this.scene.start('LevelSelectScene'));
     const bg = choose.list[0];
     bg.clear().fillStyle(0x1e3248).fillRoundedRect(-137, -22, 274, 44, 12)
       .lineStyle(1, 0x658091).strokeRoundedRect(-137, -22, 274, 44, 12);
