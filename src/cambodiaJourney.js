@@ -2,7 +2,7 @@
 function addLandmarkLabel(scene, x, y, title, subtitle) {
   const width = Math.max(title.length * 6.3, subtitle.length * 5.7, 100) + 18;
   const plate = scene.add.graphics().setDepth(-10);
-  plate.fillStyle(0x172b26, 0.92).fillRoundedRect(x - width / 2, y - 15, width, 30, 5);
+  plate.fillStyle(0x282333, 0.94).fillRoundedRect(x - width / 2, y - 15, width, 30, 5);
   plate.lineStyle(1, 0xe4c780, 0.95).strokeRoundedRect(x - width / 2, y - 15, width, 30, 5);
   const heading = scene.add.text(x, y - 8, title, {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '9px',
@@ -22,19 +22,38 @@ export function addCambodiaJourney(scene, map) {
   if (!scene.textures.exists(key)) {
     const texture = scene.textures.createCanvas(key, width, map.heightInPixels);
     const ctx = texture.context;
-    const sky = ctx.createLinearGradient(0, 0, width, 100);
-    sky.addColorStop(0, '#b6dacf'); sky.addColorStop(0.5, '#e0d9ae');
-    sky.addColorStop(1, '#eab47c');
+    // Match the home screen's dusk palette: indigo above, coral and gold at the horizon.
+    const sky = ctx.createLinearGradient(0, 0, 0, 198);
+    sky.addColorStop(0, '#30273c');
+    sky.addColorStop(0.38, '#65404e');
+    sky.addColorStop(0.72, '#c85e4c');
+    sky.addColorStop(1, '#f1ad68');
     ctx.fillStyle = sky; ctx.fillRect(0, 0, width, 198);
-    ctx.fillStyle = '#ffe4a1'; ctx.beginPath();
-    ctx.arc(width - 210, 75, 26, 0, Math.PI * 2); ctx.fill();
+    // Soft cloud ribbons catch the same warm light as the Angkor sunset on the title screen.
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 7; i++) {
+      const x = 70 + i * (width - 140) / 7;
+      const y = 44 + (i % 3) * 23;
+      ctx.strokeStyle = i % 2 ? 'rgba(246, 179, 124, .18)' : 'rgba(255, 213, 157, .2)';
+      ctx.lineWidth = 3 + (i % 2);
+      ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + 24, y - 8, x + 54, y);
+      ctx.quadraticCurveTo(x + 77, y + 6, x + 102, y - 1); ctx.stroke();
+    }
+    const sunX = width - 210;
+    const sunGlow = ctx.createRadialGradient(sunX, 75, 9, sunX, 75, 64);
+    sunGlow.addColorStop(0, 'rgba(255, 225, 160, .82)');
+    sunGlow.addColorStop(1, 'rgba(255, 192, 112, 0)');
+    ctx.fillStyle = sunGlow; ctx.fillRect(sunX - 66, 9, 132, 132);
+    ctx.fillStyle = '#ffe5a3'; ctx.beginPath();
+    ctx.arc(sunX, 75, 29, 0, Math.PI * 2); ctx.fill();
     // Soft tree line unifies the countryside and the temple approach.
-    ctx.fillStyle = '#95ad87';
+    ctx.fillStyle = '#655b56';
     for (let x = -30; x < width + 30; x += 35) {
       ctx.beginPath(); ctx.ellipse(x, 154, 38, 15 + (x % 3) * 3, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = '#b2b578'; ctx.fillRect(0, 159, width, 37);
-    ctx.strokeStyle = '#d8cb8a'; ctx.lineWidth = 2;
+    ctx.fillStyle = '#9c805c'; ctx.fillRect(0, 159, width, 37);
+    ctx.strokeStyle = '#d7a66b'; ctx.lineWidth = 2;
     for (let y = 165; y < 194; y += 9) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
     }

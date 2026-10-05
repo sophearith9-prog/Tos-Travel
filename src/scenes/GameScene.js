@@ -1,4 +1,5 @@
 import { panel, label, button, playSound } from '../ui.js';
+import { audioSettings } from '../audioSettings.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { prepareEnvironment, addEnvironment } from '../environment.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
@@ -49,7 +50,7 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 1) {
       this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
       this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
-      this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
+      //this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
       this.load.image('angkor-wat-finish', 'assets/angkor-wat-finish.png');
     }
     const musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
@@ -293,7 +294,10 @@ export class GameScene extends Phaser.Scene {
     this.sound.stopByKey(otherMusicKey);
     const music = this.sound.get(this.musicKey);
     if (!music) playSound(this, this.musicKey, { loop: true, volume: 0.25 });
-    else if (!music.isPlaying) music.play();
+    else {
+      music.setVolume(audioSettings.music ? 0.25 : 0);
+      if (!music.isPlaying) music.play();
+    }
   }
 
   pauseGame() {
@@ -675,6 +679,9 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(200, () => enemy.destroy());
     } else {
       if (this.isInvulnerable) return;
+
+      // Play an impact cue for every damaging enemy contact; invulnerable overlaps return above.
+      playSound(this, 'stomp', { volume: 0.72, rate: 1.05 });
 
       this.lives -= 1;
       this.updateHUD();

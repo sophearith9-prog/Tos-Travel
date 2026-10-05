@@ -59,7 +59,12 @@ export function landscape(scene, x, y) {
   return g;
 }
 
+import { audioSettings } from './audioSettings.js';
+
 export function playSound(scene, key, options) {
   // A failed audio download or unavailable decoder should not stop the game.
-  if (scene.cache.audio.exists(key)) scene.sound.play(key, options);
+  const isMusic = key.startsWith('bgm-');
+  if (scene.cache.audio.exists(key) && audioSettings[isMusic ? 'music' : 'sound']) {
+    scene.sound.play(key, options);
+  }
 }

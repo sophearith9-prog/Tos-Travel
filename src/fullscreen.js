@@ -8,7 +8,9 @@
     const active = fullscreenElement() === machine || expanded;
     machine.classList.toggle('is-fullscreen', active);
     document.body.classList.toggle('game-expanded', active);
-    button.textContent = active ? '↙ Exit fullscreen' : '⛶ Fullscreen';
+    button.textContent = '⛶';
+    button.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+    button.title = active ? 'Exit fullscreen' : 'Enter fullscreen';
     button.setAttribute('aria-pressed', String(active));
     requestAnimationFrame(() => game.scale.refresh());
   };
