@@ -1,22 +1,5 @@
 // An illustrated journey, rather than a geographic map, exclusive to level 1.
-import { addLivingMorning } from './levelOneAnimations.js';
-
-function addLandmarkLabel(scene, x, y, title, subtitle) {
-  const width = Math.max(title.length * 6.3, subtitle.length * 5.7, 100) + 18;
-  const plate = scene.add.graphics().setDepth(-10);
-  plate.fillStyle(0x282333, 0.94).fillRoundedRect(x - width / 2, y - 15, width, 30, 5);
-  plate.lineStyle(1, 0xe4c780, 0.95).strokeRoundedRect(x - width / 2, y - 15, width, 30, 5);
-  const heading = scene.add.text(x, y - 8, title, {
-    fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '9px',
-    fontStyle: 'bold', color: '#fff2cd', stroke: '#172b26', strokeThickness: 1,
-    align: 'center'
-  }).setOrigin(0.5).setDepth(-9).setResolution(3);
-  const localName = scene.add.text(x, y + 6, subtitle, {
-    fontFamily: 'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif', fontSize: '7px',
-    color: '#f2d994', stroke: '#172b26', strokeThickness: 1, align: 'center'
-  }).setOrigin(0.5).setDepth(-9).setResolution(3);
-  return [plate, heading, localName];
-}
+import { addTempleAmbience } from './levelOneAnimations.js';
 
 export function addCambodiaJourney(scene, map) {
   const width = map.widthInPixels;
@@ -175,12 +158,10 @@ export function addCambodiaJourney(scene, map) {
     texture.refresh();
   }
   scene.add.image(0, 0, key).setOrigin(0).setDepth(-20);
-  addLivingMorning(scene, width);
+  addTempleAmbience(scene, width);
   // Tuck the irregular image edges behind the grass so the rocks meet the land.
   const groundY = 11 * map.tileHeight;
   const mountainBaseY = groundY + 6;
-  addLandmarkLabel(scene, 1730, 116, 'TRAPEANG THMOR', 'អាងទឹកត្រពាំងថ្ម');
-  addLandmarkLabel(scene, 2110, 116, 'RURAL GARDENS', 'សួនកសិទេសចរណ៍');
   if (scene.textures.exists('kla-kon-cliff')) {
     scene.textures.get('kla-kon-cliff').setFilter(Phaser.Textures.FilterMode.LINEAR);
     // Overlap the rocky edges to extend the mountain rightward into a larger area.
@@ -192,12 +173,10 @@ export function addCambodiaJourney(scene, map) {
     const temple = scene.add.image(200, mountainBaseY, 'banteay-chhmar')
       .setOrigin(0.5, 1).setDepth(-16);
     temple.setScale(165 / temple.height);
-    addLandmarkLabel(scene, 200, mountainBaseY - 108, 'BANTEAY CHHMAR', 'ប្រាសាទបន្ទាយឆ្មារ');
   }
   if (scene.textures.exists('kla-kon-mountain')) {
     scene.textures.get('kla-kon-mountain').setFilter(Phaser.Textures.FilterMode.LINEAR);
     const mountain = scene.add.image(605, mountainBaseY, 'kla-kon-mountain').setOrigin(0.5, 1).setDepth(-15);
     mountain.setScale(165 / mountain.height);
   }
-  //addLandmarkLabel(scene, 605, mountainBaseY - 8, 'KLA KON MOUNTAIN', 'ភ្នំគូលែន');
 }

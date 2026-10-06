@@ -2,6 +2,7 @@ import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { button, label } from '../ui.js';
 import { PROVINCE_ROUTE, TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { prepareProvinceSceneryTexture } from '../provinceScenery.js';
+import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 
 const LIST_TOP = 148;
 const LIST_BOTTOM = 378;
@@ -17,6 +18,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create() {
+    fadeSceneIn(this);
     this.drawJourneyBackdrop();
     PROVINCE_ROUTE.forEach(province => prepareProvinceSceneryTexture(this, province));
     label(this, 400, 30, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#d8b77d');
@@ -54,16 +56,34 @@ export class LevelSelectScene extends Phaser.Scene {
       this.setListScroll(ratio * this.maxListScroll);
     });
 
+    // Drag anywhere over the stage list on touch screens; mouse users can also drag it.
+    this.listDrag = null;
+    this.input.on('pointerdown', pointer => {
+      if (pointer.x >= 332 && pointer.x <= 785 && pointer.y >= LIST_TOP && pointer.y <= LIST_BOTTOM) {
+        this.listDrag = { id: pointer.id, startY: pointer.y, startScroll: this.listScroll };
+      }
+    });
+    this.input.on('pointermove', pointer => {
+      if (!this.listDrag || pointer.id !== this.listDrag.id || !pointer.isDown) return;
+      const deltaY = pointer.y - this.listDrag.startY;
+      if (Math.abs(deltaY) > 4) this.setListScroll(this.listDrag.startScroll - deltaY);
+    });
+    const finishListDrag = pointer => {
+      if (this.listDrag?.id === pointer.id) this.listDrag = null;
+    };
+    this.input.on('pointerup', finishListDrag);
+    this.input.on('pointerupoutside', finishListDrag);
+
     this.input.on('wheel', (pointer, over, deltaX, deltaY) => {
       if (pointer.x >= 332 && pointer.x <= 785 && pointer.y >= LIST_TOP && pointer.y <= LIST_BOTTOM) {
         this.setListScroll(this.listScroll + deltaY * 0.72);
       }
     });
 
-    const back = () => this.scene.start('MainMenuScene');
+    const back = () => fadeToScene(this, 'MainMenuScene');
     const backButton = button(this, 170, 410, 200, '< Back to menu', back, false, null);
     backButton.list[0].clear().fillStyle(0x302632).fillRoundedRect(-100, -22, 200, 44, 12);
-    label(this, 560, 410, 'WHEEL OR DRAG THE GOLD HANDLE TO SCROLL', 9, '#c5b69d');
+    label(this, 560, 410, 'SWIPE THE LIST OR DRAG THE GOLD HANDLE', 9, '#c5b69d');
     if (this.input.keyboard) {
       this.input.keyboard.once('keydown-ESC', back);
       this.input.keyboard.on('keydown-DOWN', () => this.setListScroll(this.listScroll + ROW_HEIGHT));
@@ -139,8 +159,9 @@ export class LevelSelectScene extends Phaser.Scene {
       drawRow();
       this.destination.setText('Levels 1–3: Angkor introduction. Levels 4–28: province journey.');
     });
-    group.on('pointerdown', () => {
-      if (this.isLevelRowVisible(y)) this.startLevel(level);
+    group.on('pointerup', pointer => {
+      const movement = Math.hypot(pointer.upX - pointer.downX, pointer.upY - pointer.downY);
+      if (movement < 12 && this.isLevelRowVisible(y)) this.startLevel(level);
     });
     this.levelList.add(group);
   }
@@ -213,7 +234,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   startLevel(level) {
-    this.scene.start('GameScene', { level, score: 0, coins: 0, lives: 3 });
+    fadeToScene(this, 'GameScene', { level, score: 0, coins: 0, lives: 3 });
   }
 
   drawRouteMap(first, last) {

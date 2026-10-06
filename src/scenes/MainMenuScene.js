@@ -2,6 +2,7 @@
 
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
+import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
@@ -13,6 +14,8 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create() {
+    fadeSceneIn(this);
+    this.journeyStarted = false;
     prepareCharacterSkin(this);
     this.cameras.main.setBackgroundColor('#211b20');
     this.drawAngkor();
@@ -28,8 +31,8 @@ export class MainMenuScene extends Phaser.Scene {
     }
 
     label(this, 155, 91, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#d8b77d');
-    this.add.text(66, 105, 'ANGKOR', {
-      fontFamily: 'Georgia, serif', fontSize: '42px',
+    this.add.text(66, 105, 'នគរ', {
+      fontFamily: 'Noto Sans Khmer, Khmer OS Battambang, Georgia, serif', fontSize: '40px',
       fontStyle: 'bold', color: '#fff0d1', letterSpacing: 1
     });
     this.add.text(68, 145, 'ADVENTURE', {
@@ -47,9 +50,9 @@ export class MainMenuScene extends Phaser.Scene {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
       color: '#d0c2aa', lineSpacing: 6, wordWrap: { width: 277 }
     });
-    const start = () => this.scene.start('GameScene', { level: 1, score: 0, coins: 0, lives: 3 });
+    const start = () => this.beginJourney();
     button(this, 207, 315, 274, 'BEGIN JOURNEY  >', start, true);
-    const choose = button(this, 207, 365, 274, 'CHOOSE A STAGE', () => this.scene.start('LevelSelectScene'));
+    const choose = button(this, 207, 365, 274, 'CHOOSE A STAGE', () => fadeToScene(this, 'LevelSelectScene'));
     const bg = choose.list[0];
     bg.clear().fillStyle(0x1e3248).fillRoundedRect(-137, -22, 274, 44, 12)
       .lineStyle(1, 0x658091).strokeRoundedRect(-137, -22, 274, 44, 12);
@@ -71,6 +74,21 @@ export class MainMenuScene extends Phaser.Scene {
       graphics.fillTriangle(cx, cy - 5, cx + 4, cy, cx, cy + 5);
       graphics.fillTriangle(cx, cy - 5, cx - 4, cy, cx, cy + 5);
     }
+  }
+
+  beginJourney() {
+    if (this.journeyStarted) return;
+    this.journeyStarted = true;
+    this.arrivalTweens?.forEach(tween => tween.stop());
+    const data = { level: 1, score: 0, coins: 0, lives: 3 };
+    const rideOut = { duration: 1900, ease: 'Cubic.easeIn' };
+    this.tweens.add({
+      targets: this.menuBoat,
+      x: 820,
+      ...rideOut,
+      onComplete: () => fadeToScene(this, 'GameScene', data)
+    });
+    this.tweens.add({ targets: this.menuHero, x: 1430, ...rideOut });
   }
 
   drawAngkor() {
@@ -180,11 +198,38 @@ export class MainMenuScene extends Phaser.Scene {
     boat.lineBetween(689, 336, 682, 340);
     boat.lineBetween(682, 340, 688, 343);
     boat.fillStyle(0xf1d99c, 1).fillCircle(523, 339, 1.5).fillCircle(689, 337, 1.5);
+    boat.setX(-720);
+    this.menuBoat = boat;
     this.tweens.add({ targets: boat, y: -1.5, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    const hero = this.add.sprite(610, 361, 'player-character', 0)
-      .setOrigin(0.5, 1).setScale(0.48).setDepth(2);
-    this.tweens.add({ targets: hero, y: 359.5, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    if (!this.anims.exists('menu-player-walk')) {
+      this.anims.create({
+        key: 'menu-player-walk',
+        frames: this.anims.generateFrameNumbers('player-character', { frames: [5, 6, 7, 8, 9] }),
+        frameRate: 11,
+        repeat: -1
+      });
+    }
+    if (!this.anims.exists('menu-player-idle')) {
+      this.anims.create({
+        key: 'menu-player-idle',
+        frames: this.anims.generateFrameNumbers('player-character', { frames: [0, 1, 2, 3, 4] }),
+        frameRate: 5,
+        repeat: -1
+      });
+    }
+    const hero = this.add.sprite(-110, 361, 'player-character', 0)
+      .setOrigin(0.5, 1).setScale(0.48).setDepth(0);
+    this.menuHero = hero;
+    const arrival = { duration: 3400, ease: 'Cubic.easeOut' };
+    this.arrivalTweens = [
+      this.tweens.add({ targets: boat, x: 0, ...arrival }),
+      this.tweens.add({ targets: hero, x: 610, ...arrival })
+    ];
+    hero.play('menu-player-idle');
+    // Keep the passenger seated while the boat glides into its final position.
+    this.tweens.add({ targets: hero, y: 359.5, duration: 1500,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     for (let i = 0; i < 13; i++) {
       const x = 420 + (i * 61) % 365;

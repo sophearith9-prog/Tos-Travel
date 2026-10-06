@@ -1,11 +1,22 @@
+import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
+import { prepareCharacterSkin } from '../characterSkin.js';
+
 export class IntroScene extends Phaser.Scene {
   constructor() {
     super('IntroScene');
     this.finished = false;
   }
 
+  preload() {
+    if (!this.textures.exists('character-skin-source')) {
+      this.load.image('character-skin-source', 'assets/character-khmer.png');
+    }
+  }
+
   create() {
     this.finished = false;
+    fadeSceneIn(this);
+    prepareCharacterSkin(this);
     this.cameras.main.setBackgroundColor('#111b2a');
     const sky = this.add.graphics();
     sky.fillGradientStyle(0x111b2a, 0x111b2a, 0x492b3c, 0x492b3c, 1);
@@ -53,12 +64,43 @@ export class IntroScene extends Phaser.Scene {
         yoyo: true, repeat: -1, delay: i * 41 });
     }
 
+    // A traveler rides a longboat across the foreground during the intro.
+    const boat = this.add.container(-150, 356);
+    const hull = this.add.graphics();
+    hull.fillStyle(0x170f19, 0.42).fillPoints([
+      { x: 0, y: 4 }, { x: 164, y: 4 }, { x: 145, y: 17 },
+      { x: 105, y: 22 }, { x: 54, y: 21 }, { x: 15, y: 14 }
+    ], true);
+    hull.fillStyle(0x813f37, 1).fillPoints([
+      { x: -5, y: -4 }, { x: 15, y: 1 }, { x: 54, y: 7 },
+      { x: 105, y: 10 }, { x: 143, y: 5 }, { x: 166, y: -5 },
+      { x: 156, y: 9 }, { x: 141, y: 17 }, { x: 105, y: 22 },
+      { x: 54, y: 21 }, { x: 19, y: 15 }, { x: 3, y: 7 }
+    ], true);
+    hull.lineStyle(2, 0xe3b66c, 0.98).strokePoints([
+      { x: -5, y: -4 }, { x: 28, y: 3 }, { x: 68, y: 8 },
+      { x: 112, y: 8 }, { x: 146, y: 2 }, { x: 166, y: -5 }
+    ], false);
+    hull.lineStyle(2, 0xf0cf8a, 1)
+      .lineBetween(0, -3, -8, -12).lineBetween(-8, -12, -2, -17)
+      .lineBetween(161, -3, 170, -12).lineBetween(170, -12, 165, -17);
+    for (let x = 28; x <= 138; x += 22) {
+      hull.fillStyle(0xe6bd77, 1).fillTriangle(x - 3, 7, x, 3, x + 3, 8);
+    }
+    const passenger = this.add.sprite(79, 5, 'player-character', 0)
+      .setOrigin(0.5, 1).setScale(0.4);
+    boat.add([hull, passenger]);
+    this.tweens.add({ targets: boat, x: 940, duration: 6800,
+      ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: boat, y: 354, duration: 1400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
     const eyebrow = this.add.text(400, 112, 'A LITTLE ARCADE PRESENTS', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '12px',
       fontStyle: 'bold', color: '#f0cf98', letterSpacing: 4
     }).setOrigin(0.5).setAlpha(0);
-    const title = this.add.text(400, 163, 'ANGKOR ADVENTURE', {
-      fontFamily: 'Georgia, serif', fontSize: '39px', fontStyle: 'bold',
+    const title = this.add.text(400, 163, 'នគរ ADVENTURE', {
+      fontFamily: 'Noto Sans Khmer, Khmer OS Battambang, Georgia, serif', fontSize: '39px', fontStyle: 'bold',
       color: '#fff0ce', stroke: '#442b31', strokeThickness: 7,
       letterSpacing: 2, shadow: { offsetX: 0, offsetY: 4, color: '#17151f', blur: 10, fill: true }
     }).setOrigin(0.5).setAlpha(0).setScale(0.92);
@@ -86,13 +128,12 @@ export class IntroScene extends Phaser.Scene {
 
     this.input.once('pointerdown', this.finishIntro, this);
     this.input.keyboard?.once('keydown', this.finishIntro, this);
-    this.time.delayedCall(5200, this.finishIntro, [], this);
+    this.time.delayedCall(7000, this.finishIntro, [], this);
   }
 
   finishIntro() {
     if (this.finished) return;
     this.finished = true;
-    this.cameras.main.fadeOut(320, 10, 13, 20);
-    this.time.delayedCall(320, () => this.scene.start('MainMenuScene'));
+    fadeToScene(this, 'MainMenuScene', undefined, { duration: 520 });
   }
 }

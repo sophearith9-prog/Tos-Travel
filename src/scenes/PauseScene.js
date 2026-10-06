@@ -1,6 +1,7 @@
 import { label } from '../ui.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { audioSettings, onAudioSettingsChange, setAudioEnabled } from '../audioSettings.js';
+import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 
 function drawRomdoul(graphics, x, y, radius, color, alpha = 1) {
   const center = { x, y };
@@ -77,6 +78,7 @@ export class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
 
   create({ resumeMusic = false } = {}) {
+    fadeSceneIn(this);
     this.add.rectangle(400, 225, 800, 450, 0x060e1c, 0.8).setInteractive();
     const game = this.scene.get('GameScene');
     const frame = this.add.graphics();
@@ -144,8 +146,7 @@ export class PauseScene extends Phaser.Scene {
       resumed = true;
       game.input.keyboard?.resetKeys();
       this.sound.stopByKey(game.musicKey);
-      this.scene.stop('GameScene');
-      this.scene.start(destination, data);
+      fadeToScene(this, destination, data, { stop: ['GameScene'] });
     };
 
     actionButton(this, 400, 145, 280, 44, 'RESUME  >', resume, true);

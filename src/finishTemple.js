@@ -16,11 +16,12 @@ export function addFinishTemple(scene, map) {
       .setOrigin(0.5, 1).setDisplaySize(112, 80).setDepth(-1);
     return;
   }
-  if (scene.currentLevel === 1 && scene.textures.exists('angkor-wat-finish')) {
-    scene.textures.get('angkor-wat-finish').setFilter(Phaser.Textures.FilterMode.LINEAR);
-    const temple = scene.add.image(center, ground, 'angkor-wat-finish')
+  if (scene.currentLevel === 1 && scene.textures.exists('khmer-entrance-gate')) {
+    scene.textures.get('khmer-entrance-gate').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const temple = scene.add.image(center, ground + 5, 'khmer-entrance-gate')
       .setOrigin(0.5, 1).setDepth(-1);
-    temple.setDisplaySize(320, 163);
+    temple.setDisplaySize(216, 186);
+    addAngkorPortal(scene, center, ground + 5);
     return;
   }
   const g = scene.add.graphics({ x: center, y: ground }).setDepth(-1);
@@ -71,4 +72,45 @@ export function addFinishTemple(scene, map) {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '10px',
     fontStyle: 'bold', color: '#ffe1a3', stroke: '#302d29', strokeThickness: 3
   }).setOrigin(0.5).setDepth(-1);
+}
+
+function addAngkorPortal(scene, center, ground) {
+  const key = 'angkor-portal-window';
+  if (!scene.textures.exists(key) && scene.textures.exists('portal-destination')) {
+    const texture = scene.textures.createCanvas(key, 64, 144);
+    const ctx = texture.context;
+    const source = scene.textures.get('portal-destination').getSourceImage();
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, 144);
+    ctx.lineTo(0, 39);
+    ctx.quadraticCurveTo(32, 0, 64, 39);
+    ctx.lineTo(64, 144);
+    ctx.closePath();
+    ctx.clip();
+    const cropWidth = source.height * (64 / 144);
+    ctx.drawImage(source, (source.width - cropWidth) / 2, 0, cropWidth, source.height,
+      0, 0, 64, 144);
+    const shimmer = ctx.createLinearGradient(0, 0, 64, 0);
+    shimmer.addColorStop(0, 'rgba(255,177,61,0.5)');
+    shimmer.addColorStop(0.5, 'rgba(255,231,153,0.18)');
+    shimmer.addColorStop(1, 'rgba(255,177,61,0.46)');
+    ctx.fillStyle = shimmer;
+    ctx.fillRect(0, 0, 64, 144);
+    ctx.restore();
+    texture.refresh();
+    texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
+  if (!scene.textures.exists(key)) return;
+
+  const portal = scene.add.container(center, ground - 5).setDepth(0);
+  const aura = scene.add.graphics();
+  aura.fillStyle(0xffb83f, 0.26).fillEllipse(0, -42, 43, 84);
+  aura.lineStyle(3, 0xffd36b, 0.94).strokeEllipse(0, -42, 34, 79);
+  aura.lineStyle(1.5, 0xfff0b0, 0.95).strokeEllipse(0, -42, 27, 69);
+  const view = scene.add.image(0, -32, key).setDisplaySize(23, 66).setAlpha(0.94);
+  portal.add([aura, view]);
+  scene.templePortal = portal;
+  scene.tweens.add({ targets: portal, alpha: 0.76, scaleX: 0.91,
+    duration: 760, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 }

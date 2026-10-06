@@ -20,6 +20,7 @@ import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.j
 import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
+import { fadeSceneIn } from '../sceneTransitions.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -58,7 +59,10 @@ export class GameScene extends Phaser.Scene {
       //this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
       //this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
       this.load.image('banteay-temple-background', 'assets/banteay-chhmar-level1-panorama.png');
-      this.load.image('angkor-wat-finish', 'assets/angkor-wat-finish.png');
+      this.load.image('portal-destination', 'assets/angkor-wat-level2.png');
+      this.load.image('khmer-guardian-waypoint', 'assets/khmer-guardian-waypoint.png');
+      this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
+      this.load.image('temple-part-source', 'assets/templepart.png');
     }
     const musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
     const musicFile = this.currentLevel === 2 ? 'skothom.mp3' : 'bgm.mp3';
@@ -103,6 +107,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    fadeSceneIn(this, 520);
     prepareCharacterSkin(this);
     prepareEnemySkin(this);
     this.createAnimations();
@@ -142,7 +147,7 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 2) addAngkorWatBackdrop(this, map);
 
     const groundTiles = config.province ? prepareProvinceTerrain(this, config.province)
-      : this.currentLevel === 2 || this.currentLevel === 3
+      : this.currentLevel === 1 || this.currentLevel === 2 || this.currentLevel === 3
       ? prepareAngkorGround(this)
       : prepareEnvironment(this);
     const tileImages = {
@@ -167,7 +172,8 @@ export class GameScene extends Phaser.Scene {
       this.groundLayer.setCollisionByExclusion([-1]);
       if (this.currentLevel === 3) this.groundLayer.setTint(0x82958b);
     }
-    addEnvironment(this, map);
+    if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
+    if (this.currentLevel !== 1) addEnvironment(this, map);
     addFinishTemple(this, map);
     this.finishFlag = addFinishFlag(this, map);
 
@@ -239,7 +245,9 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
     // Finish Section: Flagpole Trigger Zone (width - 15) and Castle Door (width - 7)
-    const flagPixelX = (map.width - 15) * 18 + 9;
+    const flagPixelX = this.currentLevel === 1
+      ? (map.width - 7) * 18 + 9
+      : (map.width - 15) * 18 + 9;
     this.flagX = flagPixelX;
     this.castleDoorX = (map.width - 7) * 18 + 9;
 
@@ -247,11 +255,11 @@ export class GameScene extends Phaser.Scene {
     this.goal = this.add.zone(flagPixelX, 99, 48, 198);
     this.physics.add.existing(this.goal, true);
     this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
-    this.goalLabel = this.add.text(flagPixelX + 25, 145,
-      this.currentLevel === 2 ? 'SEALED' : 'FINISH', {
+    this.goalLabel = this.currentLevel === 2 ? this.add.text(flagPixelX + 25, 145,
+      'SEALED', {
       fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3
-    }).setOrigin(0.5).setDepth(10);
+    }).setOrigin(0.5).setDepth(10) : null;
     // Camera setup with level sky color
     this.cameras.main.setBackgroundColor(config.skyColor || '#5c94fc');
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -289,6 +297,7 @@ export class GameScene extends Phaser.Scene {
 
     this.createHUD();
     this.showLevelIntroBanner(config.title);
+    if (this.currentLevel === 1) this.startLevelOneBoatArrival();
     if (this.currentLevel === 1) this.time.delayedCall(450, () => playSound(this, 'rooster-morning', { volume: 0.7 }));
     installCombat(this);
     installFinalBoss(this);
@@ -329,6 +338,231 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300);
     this.tweens.add({ targets: banner, alpha: 0, y: banner.y - 12, delay: 1500,
       duration: 800, onComplete: () => banner.destroy() });
+  }
+
+  replaceLevelOneDirectionSigns() {
+    if (!this.textures.exists('khmer-guardian-waypoint')) return;
+    this.textures.get('khmer-guardian-waypoint').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const layer = this.groundLayer;
+    const tileWidth = this.map.tileWidth;
+    const tileHeight = this.map.tileHeight;
+    const signPosts = [];
+    layer.forEachTile(tile => {
+      if (tile.index !== 67 || layer.getTileAt(tile.x + 1, tile.y)?.index !== 68) return;
+      const topRow = tile.y;
+      const signX = tile.x;
+      tile.alpha = 0;
+      tile.setCollision(false, false, false, false);
+      const topRight = layer.getTileAt(signX + 1, topRow);
+      topRight.alpha = 0;
+      topRight.setCollision(false, false, false, false);
+
+      let row = topRow + 1;
+      while (layer.getTileAt(signX, row)?.index === 87 &&
+             layer.getTileAt(signX + 1, row)?.index === 88) {
+        for (const part of [layer.getTileAt(signX, row), layer.getTileAt(signX + 1, row)]) {
+          part.alpha = 0;
+          part.setCollision(false, false, false, false);
+        }
+        row++;
+      }
+      let supportColumn = signX + 1;
+      while (supportColumn < this.map.width - 1 && !layer.hasTileAt(supportColumn, row)) {
+        supportColumn++;
+      }
+      signPosts.push({
+        x: (supportColumn + 1) * tileWidth,
+        y: row * tileHeight + 3
+      });
+    });
+
+    for (const sign of signPosts) {
+      this.add.image(sign.x, sign.y, 'khmer-guardian-waypoint')
+        .setOrigin(0.5, 1)
+        .setDisplaySize(54, 88)
+        .setDepth(-1);
+    }
+  }
+
+  startLevelOneBoatArrival() {
+    this.levelOneArrival = true;
+    this.levelOneArrivalJump = false;
+    const player = this.player;
+    const firstQuestionBlock = [...(this.coinBlocks?.values() || [])]
+      .map(block => block.tile)
+      .filter(tile => tile.index === 48)
+      .sort((a, b) => a.pixelX - b.pixelX)[0];
+    const targetBlockX = firstQuestionBlock?.pixelX ?? 39 * this.map.tileWidth;
+    const arrivalX = Math.max(0, targetBlockX - 160);
+    const boatY = (firstQuestionBlock?.pixelY ?? 8 * this.map.tileHeight) + 12;
+    // Put the passenger near the bow so the jump lands on the block cluster.
+    const riderX = targetBlockX - 30;
+    const riderY = boatY + 2;
+    player.body.enable = false;
+    player.setPosition(-110, riderY).setVelocity(0, 0).setFlipX(false).play('player-idle');
+
+    const boat = this.add.container(-190, boatY).setDepth(3);
+    const art = this.add.graphics();
+    art.fillStyle(0x170f19, 0.42).fillPoints([
+      { x: 0, y: 5 }, { x: 164, y: 5 }, { x: 145, y: 17 },
+      { x: 105, y: 22 }, { x: 54, y: 21 }, { x: 15, y: 14 }
+    ], true);
+    art.fillStyle(0x813f37, 1).fillPoints([
+      { x: -5, y: -4 }, { x: 15, y: 1 }, { x: 54, y: 7 },
+      { x: 105, y: 10 }, { x: 143, y: 5 }, { x: 166, y: -5 },
+      { x: 156, y: 9 }, { x: 141, y: 17 }, { x: 105, y: 22 },
+      { x: 54, y: 21 }, { x: 19, y: 15 }, { x: 3, y: 7 }
+    ], true);
+    art.lineStyle(2, 0xe3b66c, 1).strokePoints([
+      { x: -5, y: -4 }, { x: 28, y: 3 }, { x: 68, y: 8 },
+      { x: 112, y: 8 }, { x: 146, y: 2 }, { x: 166, y: -5 }
+    ], false);
+    boat.add(art);
+
+    const rideIn = { duration: 600, ease: 'Cubic.easeIn' };
+    this.tweens.add({ targets: boat, x: arrivalX, ...rideIn });
+    this.tweens.add({
+      targets: player,
+      x: riderX,
+      ...rideIn,
+      onComplete: () => {
+        this.playBoatCrashSound();
+        const impactX = firstQuestionBlock
+          ? firstQuestionBlock.pixelX + firstQuestionBlock.width / 2
+          : boat.x + 164;
+        const impactY = firstQuestionBlock
+          ? firstQuestionBlock.pixelY + firstQuestionBlock.height / 2
+          : boat.y + 7;
+        this.createBoatCrashEffect(impactX, impactY);
+        const hitFlash = this.add.rectangle(impactX, impactY,
+          firstQuestionBlock?.width || 18, firstQuestionBlock?.height || 18,
+          0xffe28b, 0.55).setDepth(14);
+        this.tweens.add({ targets: hitFlash, alpha: 0, scale: 1.35,
+          duration: 240, ease: 'Sine.easeOut', onComplete: () => hitFlash.destroy() });
+        this.tweens.add({
+          targets: boat,
+          x: arrivalX - 7,
+          angle: -5,
+          duration: 110,
+          ease: 'Sine.easeOut',
+          onComplete: () => this.tweens.add({
+            targets: boat,
+            x: arrivalX + 2,
+            angle: 2,
+            duration: 190,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+              // A tiny dip gives the rider a readable beat before the jump.
+              this.tweens.add({
+                targets: player,
+                y: 154,
+                duration: 100,
+                yoyo: true,
+                ease: 'Sine.easeInOut',
+                onComplete: () => {
+                  player.body.enable = true;
+                  player.body.reset(riderX, riderY);
+                  player.setVelocity(60, -330).play('player-jump', true);
+                  this.levelOneArrivalJump = true;
+                }
+              });
+              // Keep the impact readable, then tip the wreck behind the ground.
+              this.tweens.add({
+                targets: boat,
+                y: boat.y + 12,
+                angle: -20,
+                duration: 220,
+                ease: 'Sine.easeIn',
+                onComplete: () => {
+                  boat.setDepth(-2);
+                  this.tweens.add({ targets: boat, y: boat.y + 40, angle: -64,
+                    alpha: 0, duration: 560, ease: 'Sine.easeIn',
+                    onComplete: () => boat.destroy() });
+                }
+              });
+            }
+          })
+        });
+      }
+    });
+  }
+
+  playBoatCrashSound() {
+    if (!audioSettings.sound) return;
+    const context = this.sound.context;
+    if (!context?.createOscillator || !context?.createBuffer) {
+      playSound(this, 'stomp', { volume: 0.75 });
+      return;
+    }
+    const now = context.currentTime;
+    const thud = context.createOscillator();
+    const thudGain = context.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(145, now);
+    thud.frequency.exponentialRampToValueAtTime(48, now + 0.28);
+    thudGain.gain.setValueAtTime(0.48, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    thud.connect(thudGain).connect(context.destination);
+    thud.start(now);
+    thud.stop(now + 0.31);
+
+    const sampleRate = context.sampleRate;
+    const buffer = context.createBuffer(1, Math.floor(sampleRate * 0.36), sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) {
+      samples[i] = (Math.random() * 2 - 1) * (1 - i / samples.length);
+    }
+    const splash = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const splashGain = context.createGain();
+    splash.buffer = buffer;
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1050, now);
+    filter.frequency.exponentialRampToValueAtTime(240, now + 0.34);
+    splashGain.gain.setValueAtTime(0.22, now);
+    splashGain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+    splash.connect(filter).connect(splashGain).connect(context.destination);
+    splash.start(now);
+    splash.stop(now + 0.37);
+  }
+
+  createBoatCrashEffect(x, y) {
+    const colors = [0x62d4d1, 0xb5f1de, 0xe0a85c, 0x9b5738];
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2;
+      const distance = i % 3 === 0 ? 26 : 17;
+      const particle = this.add.circle(x, y, i % 4 === 0 ? 3 : 2,
+        colors[i % colors.length], 0.95).setDepth(12);
+      this.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance - (i % 2 ? 9 : 15),
+        alpha: 0,
+        scale: 0.25,
+        duration: 420 + (i % 4) * 65,
+        ease: 'Cubic.easeOut',
+        onComplete: () => particle.destroy()
+      });
+    }
+
+    const woodTones = [0x6e3828, 0x9b5738, 0xc17b42, 0xe0a85c];
+    for (let i = 0; i < 9; i++) {
+      const angle = -Math.PI + (i / 8) * Math.PI;
+      const length = 7 + (i % 3) * 3;
+      const splinter = this.add.rectangle(x, y, length, 2.5,
+        woodTones[i % woodTones.length]).setDepth(13);
+      splinter.setRotation(angle);
+      this.tweens.add({
+        targets: splinter,
+        x: x + Math.cos(angle) * (25 + (i % 3) * 8),
+        y: y + Math.sin(angle) * 24 - (i % 2 ? 11 : 18),
+        angle: Phaser.Math.RadToDeg(angle) + (i % 2 ? 110 : -110),
+        alpha: 0,
+        duration: 450 + (i % 4) * 55,
+        ease: 'Cubic.easeOut',
+        onComplete: () => splinter.destroy()
+      });
+    }
   }
 
   createAnimations() {
@@ -585,7 +819,7 @@ export class GameScene extends Phaser.Scene {
     for (const block of this.coinBlocks.values()) {
       block.tile.alpha = 0;
       const key = block.arrowReward ? 'bow-supply-box'
-        : this.currentLevel === 2 || this.currentLevel === 3
+        : this.currentLevel === 1 || this.currentLevel === 2 || this.currentLevel === 3
         ? (block.coins || block.extraLife ? 'temple-coin-block' : 'temple-used-block')
         : (block.coins || block.extraLife || block.arrowReward) && this.textures.exists('environment-block')
         ? 'environment-block' : 'used-coin-block';
@@ -603,13 +837,13 @@ export class GameScene extends Phaser.Scene {
     block.nextHit = this.time.now + 250;
     grantBoxArrows(this, block);
     if (!block.coins && !block.extraLife) {
-      block.image.setTexture('used-coin-block');
+      block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block');
       this.tweens.add({ targets: block.image, y: tile.pixelY + 5, duration: 90, yoyo: true });
       return;
     }
     if (block.extraLife) {
       block.extraLife = false;
-      if (!block.coins) block.image.setTexture((this.currentLevel === 2 || this.currentLevel === 3) ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
+      if (!block.coins) block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
       const food = this.lifeItems.create(tile.pixelX + 9, tile.pixelY + 9, 'extra-life-food')
         .setDisplaySize(25, 25).setDepth(10);
       const nameplate = this.add.container(food.x, food.y + 18).setDepth(11);
@@ -636,7 +870,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     block.coins--;
-    if (!block.coins) block.image.setTexture((this.currentLevel === 2 || this.currentLevel === 3) ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
+    if (!block.coins) block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
     playSound(this, 'coin', { volume: 0.4 });
     this.awardComboPoints(100, tile.pixelX + 9, tile.pixelY - 12);
     this.coins++;
@@ -843,13 +1077,15 @@ export class GameScene extends Phaser.Scene {
     this.bow?.setVisible(false);
     this.arrowProjectiles?.clear(true, true);
     this.rockProjectiles?.clear(true, true);
-    this.finishFlag.setVisible(true);
-    this.tweens.add({
-      targets: this.finishFlag,
-      y: this.finishFlag.getData('raisedY'),
-      duration: 900,
-      ease: 'Sine.easeInOut'
-    });
+    if (this.finishFlag) {
+      this.finishFlag.setVisible(true);
+      this.tweens.add({
+        targets: this.finishFlag,
+        y: this.finishFlag.getData('raisedY'),
+        duration: 900,
+        ease: 'Sine.easeInOut'
+      });
+    }
 
     // Stop music and play victory sound
     this.sound.stopByKey(this.musicKey);
@@ -955,7 +1191,19 @@ export class GameScene extends Phaser.Scene {
 
     if (this.templeEntrance?.update()) return;
 
-    if (!this.templeEntrance?.outside) updateCombat(this);
+    if (!this.levelOneArrival && !this.templeEntrance?.outside) updateCombat(this);
+
+    if (this.levelOneArrival) {
+      if (!this.levelOneArrivalJump) return;
+      if (this.player.body.blocked.down) {
+        this.levelOneArrival = false;
+        this.levelOneArrivalJump = false;
+        this.player.play('player-idle', true);
+        return;
+      }
+      this.player.play('player-jump', true);
+      return;
+    }
 
     // Player Movement controls
     const left = touchControls.left || (this.cursors && (this.cursors.left.isDown || (this.wasd && this.wasd.left.isDown)));

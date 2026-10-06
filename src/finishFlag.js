@@ -8,6 +8,7 @@ export function addFinishFlag(scene, map) {
       tile.setCollision(false, false, false, false);
     }
   });
+  if (scene.currentLevel === 1) return null;
   if (!scene.textures.exists('finish-flag-art')) {
     const texture = scene.textures.createCanvas('finish-flag-art', 104, 192);
     const ctx = texture.context;
