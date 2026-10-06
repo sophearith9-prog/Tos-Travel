@@ -1,25 +1,32 @@
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
-import { backdrop, button, label, panel } from '../ui.js';
+import { button, label } from '../ui.js';
 import { PROVINCE_ROUTE, TOTAL_LEVELS } from '../levels/provinceRoute.js';
+import { prepareProvinceSceneryTexture } from '../provinceScenery.js';
 
 const LIST_TOP = 148;
 const LIST_BOTTOM = 378;
-const ROW_HEIGHT = 39;
+const ROW_HEIGHT = 78;
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() { super('LevelSelectScene'); }
 
-  create() {
-    backdrop(this);
-    label(this, 400, 30, 'CAMBODIA / 24 PROVINCES + CAPITAL / 28 STAGES', 11, '#83b6c5');
-    label(this, 400, 64, 'Choose your next destination.', 27, '#f4f1e8');
-    this.destination = label(this, 400, 101, 'Levels 1–3: Angkor introduction. Levels 4–28: province journey.', 12, '#a5b6cd');
+  preload() {
+    this.load.image('stage-preview-1', 'assets/banteay-chhmar-level1-panorama.png');
+    this.load.image('stage-preview-2', 'assets/angkor-wat-level2.png');
+    this.load.image('stage-preview-3', 'assets/angkor-sunset-level3-pixel.png');
+  }
 
-    panel(this, 20, 119, 300, 265, 0x14263c, 0x786346);
+  create() {
+    this.drawJourneyBackdrop();
+    PROVINCE_ROUTE.forEach(province => prepareProvinceSceneryTexture(this, province));
+    label(this, 400, 30, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#d8b77d');
+    label(this, 400, 64, 'Choose your next destination.', 27, '#fff0d1');
+    this.destination = label(this, 400, 101, 'Levels 1–3: Angkor introduction. Levels 4–28: province journey.', 12, '#d0c2aa');
+
     this.drawRouteMap(1, TOTAL_LEVELS);
 
-    panel(this, 332, 119, 451, 265, 0x101e31, 0x786346);
-    label(this, 552, 132, 'ALL STAGES  ·  SCROLL TO EXPLORE', 10, '#d3ad78');
+    this.flatPanel(332, 119, 451, 265, 0x1c3033);
+    label(this, 552, 132, 'ALL STAGES  ·  SCROLL TO EXPLORE', 10, '#e0b66e');
 
     const viewportHeight = LIST_BOTTOM - LIST_TOP;
     const contentHeight = TOTAL_LEVELS * ROW_HEIGHT;
@@ -31,13 +38,13 @@ export class LevelSelectScene extends Phaser.Scene {
     this.levelList.setMask(maskGraphics.createGeometryMask());
 
     for (let level = 1; level <= TOTAL_LEVELS; level++) {
-      this.createLevelRow(level, 548, LIST_TOP + 19 + (level - 1) * ROW_HEIGHT);
+      this.createLevelRow(level, 548, LIST_TOP + 37 + (level - 1) * ROW_HEIGHT);
     }
 
-    this.add.rectangle(777, (LIST_TOP + LIST_BOTTOM) / 2, 5, viewportHeight, 0x293d52, 0.95);
+    this.add.rectangle(777, (LIST_TOP + LIST_BOTTOM) / 2, 4, viewportHeight, 0x3b3036, 0.95);
     const thumbHeight = Math.max(36, viewportHeight * viewportHeight / contentHeight);
     this.scrollThumb = this.add.rectangle(777, LIST_TOP + thumbHeight / 2,
-      9, thumbHeight, 0xd1ae6f, 1).setInteractive({ useHandCursor: true });
+      7, thumbHeight, 0xd6ad68, 1).setInteractive({ useHandCursor: true });
     this.input.setDraggable(this.scrollThumb);
     this.scrollThumb.on('drag', (pointer, dragX, dragY) => {
       const centerY = Phaser.Math.Clamp(dragY, LIST_TOP + thumbHeight / 2,
@@ -54,8 +61,9 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     const back = () => this.scene.start('MainMenuScene');
-    button(this, 170, 410, 200, '< Back to menu', back);
-    label(this, 560, 410, 'WHEEL OR DRAG THE GOLD HANDLE TO SCROLL', 9, '#93a9c1');
+    const backButton = button(this, 170, 410, 200, '< Back to menu', back, false, null);
+    backButton.list[0].clear().fillStyle(0x302632).fillRoundedRect(-100, -22, 200, 44, 12);
+    label(this, 560, 410, 'WHEEL OR DRAG THE GOLD HANDLE TO SCROLL', 9, '#c5b69d');
     if (this.input.keyboard) {
       this.input.keyboard.once('keydown-ESC', back);
       this.input.keyboard.on('keydown-DOWN', () => this.setListScroll(this.listScroll + ROW_HEIGHT));
@@ -67,45 +75,126 @@ export class LevelSelectScene extends Phaser.Scene {
     }
   }
 
+  drawJourneyBackdrop() {
+    this.cameras.main.setBackgroundColor('#14282e');
+    const g = this.add.graphics();
+    g.fillStyle(0x1d3a3c, 0.78).fillEllipse(620, 90, 590, 280);
+    g.fillStyle(0x1b3434, 0.72).fillEllipse(110, 390, 650, 310);
+    g.fillStyle(0x0c202a, 0.55).fillEllipse(760, 400, 520, 300);
+    g.fillStyle(0xf0d59a, 0.08).fillCircle(670, 82, 94);
+    for (let i = 0; i < 20; i++) {
+      g.fillStyle(i % 3 ? 0x87a99a : 0xe2bd7b, 0.34);
+      g.fillRect((i * 137 + 19) % 800, (i * 73 + 21) % 450, 2, 2);
+    }
+  }
+
+  flatPanel(x, y, width, height, color) {
+    return this.add.graphics().fillStyle(color, 1).fillRoundedRect(x, y, width, height, 15);
+  }
+
   createLevelRow(level, x, y) {
     const config = LEVEL_CONFIGS[level];
     const group = this.add.container(x, y);
     const bg = this.add.graphics();
-    bg.fillStyle(0x030914, 0.28).fillRoundedRect(-204, -16, 408, 35, 7);
-    bg.fillStyle(level === 2 ? 0x26364a : 0x1b2d43, 1).fillRoundedRect(-205, -18, 408, 35, 7);
-    bg.lineStyle(1, level === 2 ? 0xe0ba70 : 0x425970, 0.9).strokeRoundedRect(-205, -18, 408, 35, 7);
-    bg.fillStyle(level === 2 ? 0xffcf70 : 0x507571, 1).fillCircle(-187, -1, 12);
-    bg.lineStyle(1, 0xffe5a1, 0.8).strokeCircle(-187, -1, 12);
-    const number = label(this, -187, -1, String(level).padStart(2, '0'), 10,
-      level === 2 ? '#26364a' : '#fff1ce');
+    const drawRow = (hovered = false) => {
+      bg.clear();
+      bg.lineStyle(2, hovered || level === 2 ? 0xd09a53 : 0xb7955d, 0.96)
+        .strokeRoundedRect(-205, -36, 410, 72, 11);
+      bg.lineStyle(1, 0xf8f0df, 0.8).strokeRoundedRect(-201, -32, 402, 64, 8);
+      bg.fillStyle(level === 2 ? 0xd9682c : 0xe67e36, 1).fillCircle(-161, 0, 32);
+      bg.lineStyle(2, 0x573327, 1).strokeCircle(-161, 0, 32);
+      bg.lineStyle(1, 0xf5bd71, 1).strokeCircle(-161, 0, 28);
+    };
+    drawRow();
+    const number = this.add.text(-161, 0, String(level).padStart(2, '0'), {
+      fontFamily: 'Georgia, serif', fontSize: '19px', fontStyle: 'bold', color: '#fff1d5'
+    }).setOrigin(0.5);
     const title = level <= 3
       ? ['BANTEAY CHHMAR', 'ANGKOR WAT CAUSEWAY', 'ANGKOR SUNSET RUINS'][level - 1]
       : config.province.name.toUpperCase();
     const detail = level <= 3 ? 'ANGKOR JOURNEY' : 'CAMBODIA PROVINCE';
-    const name = this.add.text(-164, -6, title, {
-      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '10px',
-      fontStyle: 'bold', color: '#e8dfcf', wordWrap: { width: 300 }
+    const name = this.add.text(-116, -8, title, {
+      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '11px',
+      fontStyle: 'bold', color: '#382b29', wordWrap: { width: 195 }
     }).setOrigin(0, 0.5);
-    const subtitle = this.add.text(174, -5, detail, {
+    const subtitle = this.add.text(-115, 13, detail, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '7px',
-      color: '#9fb5c7', letterSpacing: 0.4
-    }).setOrigin(1, 0.5);
+      color: '#806c55', letterSpacing: 0.4
+    }).setOrigin(0, 0.5);
     const startMark = label(this, 188, -1, '›', 18, '#e4c481');
     group.add([bg, number, name, subtitle, startMark]);
-    group.setSize(408, 35).setInteractive({ useHandCursor: true });
+    startMark.setVisible(false);
+    const textureKey = this.getStagePreviewTextureKey(level, config);
+    const bannerKey = this.createStageBannerTexture(level, textureKey);
+    const bannerArt = this.add.image(0, 0, bannerKey);
+    group.removeAll(false);
+    group.add([bannerArt, bg, number, name, subtitle]);
+    group.setSize(410, 72).setInteractive({ useHandCursor: true });
     group.on('pointerover', () => {
       if (!this.isLevelRowVisible(y)) return;
-      group.setScale(1.015);
+      drawRow(true);
       this.destination.setText(`${String(level).padStart(2, '0')}  ·  ${config.title}`);
     });
     group.on('pointerout', () => {
-      group.setScale(1);
+      drawRow();
       this.destination.setText('Levels 1–3: Angkor introduction. Levels 4–28: province journey.');
     });
     group.on('pointerdown', () => {
       if (this.isLevelRowVisible(y)) this.startLevel(level);
     });
     this.levelList.add(group);
+  }
+
+  getStagePreviewTextureKey(level, config) {
+    if (level <= 3) return `stage-preview-${level}`;
+    if (config.province.id === 'banteay-meanchey' && this.textures.exists('banteay-countryside')) {
+      return 'banteay-countryside';
+    }
+    return `province-${config.province.id}`;
+  }
+
+  createStageBannerTexture(level, textureKey) {
+    const key = `stage-banner-${level}`;
+    if (this.textures.exists(key)) return key;
+    const texture = this.textures.createCanvas(key, 410, 72);
+    const ctx = texture.context;
+    const art = this.textures.get(textureKey).getSourceImage();
+    const sxRatio = art.width / art.height;
+    const targetRatio = 196 / 62;
+    let sx = 0, sy = 0, sw = art.width, sh = art.height;
+    if (sxRatio > targetRatio) {
+      sw = art.height * targetRatio;
+      sx = (art.width - sw) / 2;
+    } else {
+      sh = art.width / targetRatio;
+      sy = (art.height - sh) / 2;
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(1, 1, 408, 70, 10);
+    ctx.clip();
+    ctx.fillStyle = '#eee5d0';
+    ctx.fillRect(0, 0, 410, 72);
+    ctx.drawImage(art, sx, sy, sw, sh, 210, 5, 196, 62);
+    const fade = ctx.createLinearGradient(188, 0, 318, 0);
+    fade.addColorStop(0, '#eee5d0');
+    fade.addColorStop(0.54, 'rgba(238,229,208,0.93)');
+    fade.addColorStop(1, 'rgba(238,229,208,0)');
+    ctx.fillStyle = fade;
+    ctx.fillRect(188, 0, 130, 72);
+    // Delicate parchment scrollwork echoes the reference along the left edge.
+    ctx.strokeStyle = 'rgba(176,143,91,0.23)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(8 + i * 4, 4);
+      ctx.bezierCurveTo(30 + i * 4, 18, 4 + i * 4, 39, 27 + i * 4, 68);
+      ctx.stroke();
+    }
+    ctx.restore();
+    texture.refresh();
+    texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
+    return key;
   }
 
   isLevelRowVisible(y) {
@@ -133,7 +222,6 @@ export class LevelSelectScene extends Phaser.Scene {
     const g = this.add.graphics();
     const outline = [[0,.37],[.04,.29],[.14,.25],[.10,.19],[.17,.09],[.32,.06],[.38,.07],[.41,.05],[.49,.06],[.58,.16],[.70,.08],[.78,0],[.82,.08],[.9,.04],[.97,0],[.98,.24],[1,.29],[.98,.39],[.99,.48],[.97,.59],[.87,.62],[.81,.63],[.73,.70],[.75,.83],[.70,.85],[.63,.78],[.59,.83],[.5,.81],[.5,.94],[.41,.99],[.32,1],[.27,.98],[.24,.93],[.19,.93],[.17,.82],[.13,.9],[.08,.85],[.08,.69],[.04,.63],[.05,.51],[0,.49],[.03,.42]].map(point);
     g.fillStyle(0x263f4b).fillPoints(outline, true);
-    g.lineStyle(1, 0x698778).strokePoints(outline, true);
     g.fillStyle(0x4e96af).fillEllipse(left + width * .34, top + height * .41, 19, 29);
     g.lineStyle(3, 0x4e96af).strokePoints([[.69,.21],[.67,.44],[.59,.57],[.46,.75],[.50,.91]].map(point), false);
     g.lineStyle(1, 0xd3ad78, .55).strokePoints(PROVINCE_ROUTE.map(province => point(province.map)), false);

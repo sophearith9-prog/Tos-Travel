@@ -34,7 +34,7 @@ export function prepareProvinceTerrain(scene, province) {
 }
 
 // Native pixel scenery shares the game's blocky drawing style and province palette.
-export function addProvinceScenery(scene, province) {
+export function prepareProvinceSceneryTexture(scene, province) {
   const key = province.id === 'banteay-meanchey' && scene.textures.exists('banteay-countryside')
     ? 'banteay-countryside' : `province-${province.id}`;
   if (!scene.textures.exists(key)) {
@@ -203,6 +203,11 @@ export function addProvinceScenery(scene, province) {
     }
     texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
   }
+  return key;
+}
+
+export function addProvinceScenery(scene, province) {
+  const key = prepareProvinceSceneryTexture(scene, province);
   const zoom = scene.cameras.main.zoom;
   if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
   else scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);

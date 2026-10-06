@@ -17,6 +17,7 @@ import { installCombat, setupEnemy, updateCombat, updateBowPose, grantBoxArrows 
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
+import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
 
@@ -56,7 +57,7 @@ export class GameScene extends Phaser.Scene {
       //this.load.audio('rooster-morning', 'assets/audio/roostermorning_sound.mp3');
       //this.load.image('kla-kon-mountain', 'assets/kla-kon-mountain.png');
       //this.load.image('kla-kon-cliff', 'assets/kla-kon-cliff.png');
-      //this.load.image('banteay-chhmar', 'assets/banteay-chhmar-cutout.png');
+      this.load.image('banteay-temple-background', 'assets/banteay-chhmar-level1-panorama.png');
       this.load.image('angkor-wat-finish', 'assets/angkor-wat-finish.png');
     }
     const musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
@@ -257,6 +258,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
     this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
+    if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
     if (this.currentLevel === 2) installLevelTwoTrial(this);
     if (config.province) addProvinceScenery(this, config.province);
     if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
@@ -321,23 +323,12 @@ export class GameScene extends Phaser.Scene {
 
   showLevelIntroBanner(title) {
     const banner = this.screenText(400, 95, 'LEVEL ' + this.currentLevel + ': ' + title.toUpperCase(), {
-      fontSize: '18px',
-      color: '#ffd700',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      fontSize: '18px', color: '#ffd700', fontStyle: 'bold', stroke: '#000000',
+      strokeThickness: 4, backgroundColor: 'rgba(0, 0, 0, 0.6)',
       padding: { left: 14, right: 14, top: 6, bottom: 6 }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(300);
-
-    this.tweens.add({
-      targets: banner,
-      alpha: 0,
-      y: banner.y - 12,
-      delay: 1500,
-      duration: 800,
-      onComplete: () => banner.destroy()
-    });
+    this.tweens.add({ targets: banner, alpha: 0, y: banner.y - 12, delay: 1500,
+      duration: 800, onComplete: () => banner.destroy() });
   }
 
   createAnimations() {

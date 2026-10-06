@@ -8,13 +8,14 @@ export function panel(scene, x, y, w, h, fill = 0x14243b, border = 0x30445e) {
   const g = scene.add.graphics();
   g.fillStyle(0x030914, 0.3).fillRoundedRect(x, y + 5, w, h, 16);
   g.fillStyle(fill).fillRoundedRect(x, y, w, h, 16);
-  g.lineStyle(1, border).strokeRoundedRect(x, y, w, h, 16);
+  if (border !== null && border !== false) g.lineStyle(1, border).strokeRoundedRect(x, y, w, h, 16);
   return g;
 }
-export function button(scene, x, y, w, title, action, primary = false) {
+export function button(scene, x, y, w, title, action, primary = false, border = undefined) {
   const group = scene.add.container(x, y);
   const bg = panel(scene, -w / 2, -22, w, 44,
-    primary ? 0xffcf70 : 0x20334b, primary ? 0xffe3a7 : 0x405671);
+    primary ? 0xffcf70 : 0x20334b, border === undefined
+      ? (primary ? 0xffe3a7 : 0x405671) : border);
   const caption = label(scene, 0, 0, title, 15, primary ? '#202b39' : '#eaf1ff');
   group.add([bg, caption]);
   group.setSize(w, 44).setInteractive({ useHandCursor: true });
