@@ -3,6 +3,8 @@ import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 const ACCOUNT_KEY = 'tos-travel-local-accounts';
 const SESSION_KEY = 'tos-travel-local-session';
 const HASH_ROUNDS = 120000;
+const ADMIN_USERNAME = 'sophearith';
+const ADMIN_PASSWORD = 'Rith_1234';
 
 function readAccounts() {
   try { return JSON.parse(localStorage.getItem(ACCOUNT_KEY) || '{}'); }
@@ -51,6 +53,7 @@ export class LoginScene extends Phaser.Scene {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '10px', color: '#d8c5a7',
       align: 'center', wordWrap: { width: 300 }
     }).setOrigin(0.5);
+    this.adminSeedPromise = this.seedAdminAccount();
 
     this.mode = 'login';
     this.form = document.createElement('form');
@@ -70,6 +73,21 @@ export class LoginScene extends Phaser.Scene {
     this.formElement.updateSize();
     this.events.once('shutdown', () => this.formElement?.destroy());
     this.events.once('destroy', () => this.formElement?.destroy());
+  }
+
+  async seedAdminAccount() {
+    try {
+      const accounts = readAccounts();
+      if (accounts[ADMIN_USERNAME]) return;
+      const salt = randomSalt();
+      accounts[ADMIN_USERNAME] = {
+        salt,
+        hash: await passwordHash(ADMIN_PASSWORD, saltBytes(salt))
+      };
+      localStorage.setItem(ACCOUNT_KEY, JSON.stringify(accounts));
+    } catch (error) {
+      this.adminSeedError = error;
+    }
   }
 
   renderForm() {
@@ -110,6 +128,8 @@ export class LoginScene extends Phaser.Scene {
     button.textContent = 'PLEASE WAIT…';
     this.status.setColor('#d8c5a7').setText('Securing your local account…');
     try {
+      await this.adminSeedPromise;
+      if (this.adminSeedError) throw this.adminSeedError;
       const accounts = readAccounts();
       if (this.mode === 'create') {
         if (accounts[username]) throw new Error('That player name is already in use on this device.');
