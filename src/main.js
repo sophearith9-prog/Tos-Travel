@@ -8,7 +8,6 @@ import { GameOverScene } from './scenes/GameOverScene.js';
 import { VictoryScene } from './scenes/VictoryScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
 import { installMobileControls } from './mobileControls.js';
-import { installAudioControls } from './audioControls.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -38,4 +37,3 @@ export const game = new Phaser.Game(config);
 installMobileControls(game);
 
 installFullscreen(game);
-installAudioControls(game);
