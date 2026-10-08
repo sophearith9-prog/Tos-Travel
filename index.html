@@ -60,6 +60,10 @@
     .game-toolbar button:hover { background: #2e4b61; border-color: #87d7ca; transform: translateY(-1px); }
     .game-toolbar button[aria-pressed="false"] { color: #9aafc4; background: #17283d; }
     .game-toolbar button:focus-visible { outline: 3px solid #ffcf70; outline-offset: 2px; }
+    .game-fullscreen-button { position: absolute; z-index: 5; width: 42px; height: 42px; padding: 0; border: 1px solid #658292; border-bottom-width: 3px; border-radius: 12px; background: #243d50e8; color: #eef3fa; font: bold 22px 'Trebuchet MS', sans-serif; cursor: pointer; touch-action: manipulation; transform: translate(-50%, -50%); }
+    .game-fullscreen-button:hover { background: #2e4b61; border-color: #87d7ca; }
+    .game-fullscreen-button:focus-visible { outline: 3px solid #ffcf70; outline-offset: 2px; }
+    .is-mobile-device #game-container .touch-controls.is-playable { transform: translateY(-64px); }
     @media (max-width: 460px) { .game-toolbar { gap: 5px; } .game-toolbar button { min-height: 40px; padding: 7px 9px; font-size: 12px; } }
     body.game-expanded { overflow: hidden; }
     .machine.is-fullscreen { position: fixed; inset: 0; z-index: 1000; width: 100%; height: 100%; height: 100dvh; border: 0; border-radius: 0; display: flex; flex-direction: column; padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #0b1423; }
@@ -78,7 +82,6 @@
       <div class="game-toolbar" role="group" aria-label="Game settings">
         <button type="button" id="music-button" aria-label="Turn music off" title="Music on" aria-pressed="true">♫</button>
         <button type="button" id="sound-button" aria-label="Turn sound effects off" title="Sound on" aria-pressed="true">&#128266;&#65038;</button>
-        <button type="button" id="fullscreen-button" aria-label="Enter fullscreen" title="Enter fullscreen" aria-pressed="false">⛶</button>
       </div>
       <div id="game-container" role="region" aria-label="នគរ ADVENTURE game. Use the touch buttons, arrows or WASD to move, Space to jump, and E to attack.">
       <div class="touch-controls" role="group" aria-label="Touch game controls">
@@ -92,6 +95,7 @@
           <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
         </div>
       </div>
+      <button type="button" id="fullscreen-button" class="game-fullscreen-button" aria-label="Enter fullscreen" title="Enter fullscreen" aria-pressed="false">⛶</button>
       </div>
     </div>
     <section class="guide" aria-label="Controls and objective">

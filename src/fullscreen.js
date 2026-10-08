@@ -4,6 +4,14 @@
   if (!machine || !button) return;
   let expanded = false;
   const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const positionButton = () => {
+    if (!game.canvas || !button.parentElement) return;
+    const canvas = game.canvas.getBoundingClientRect();
+    const frame = button.parentElement.getBoundingClientRect();
+    // Stack just below the pause HUD at (770, 28) in the game's 800x450 layout.
+    button.style.left = `${canvas.left - frame.left + canvas.width * (770 / 800)}px`;
+    button.style.top = `${canvas.top - frame.top + canvas.height * (78 / 450)}px`;
+  };
   const sync = () => {
     const active = fullscreenElement() === machine || expanded;
     machine.classList.toggle('is-fullscreen', active);
@@ -12,8 +20,13 @@
     button.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
     button.title = active ? 'Exit fullscreen' : 'Enter fullscreen';
     button.setAttribute('aria-pressed', String(active));
-    requestAnimationFrame(() => game.scale.refresh());
+    requestAnimationFrame(() => { game.scale.refresh(); positionButton(); });
   };
+  game.scale.on('resize', positionButton);
+  window.addEventListener('resize', positionButton);
+  window.addEventListener('orientationchange', positionButton);
+  new ResizeObserver(positionButton).observe(button.parentElement);
+  requestAnimationFrame(positionButton);
   button.addEventListener('click', async () => {
     button.disabled = true;
     try {

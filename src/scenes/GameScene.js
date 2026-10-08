@@ -719,16 +719,16 @@ export class GameScene extends Phaser.Scene {
     this.drawLifeHearts();
     this.extraLivesText = hudText(88, 23, '', 11, '#f4f1df');
     this.hudContainer.add(this.extraLivesText);
-    const pauseIcon = this.add.container(773, 23);
+    const pauseIcon = this.add.container(770, 28);
     const pausePlate = this.add.graphics();
-    pausePlate.fillStyle(0x20364e, 0.88).fillRoundedRect(-12, -12, 24, 24, 5);
-    pausePlate.lineStyle(1, 0xd8d7c9, 0.72).strokeRoundedRect(-11.5, -11.5, 23, 23, 5);
+    pausePlate.fillStyle(0x20364e, 0.94).fillRoundedRect(-20, -20, 40, 40, 8);
+    pausePlate.lineStyle(1.5, 0xd8d7c9, 0.82).strokeRoundedRect(-19.25, -19.25, 38.5, 38.5, 8);
     const pauseMark = this.add.text(0, 0, 'Ⅱ', {
-      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
+      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '20px',
       fontStyle: 'bold', color: '#f4f1df'
     }).setOrigin(0.5);
     pauseIcon.add([pausePlate, pauseMark]);
-    pauseIcon.setSize(30, 30).setInteractive({ useHandCursor: true });
+    pauseIcon.setSize(48, 48).setInteractive({ useHandCursor: true });
     pauseIcon.on('pointerover', () => pauseIcon.setScale(1.1));
     pauseIcon.on('pointerout', () => pauseIcon.setScale(1));
     pauseIcon.on('pointerdown', () => this.pauseGame());
