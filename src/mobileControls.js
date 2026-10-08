@@ -3,9 +3,15 @@ export const touchControls = { left: false, right: false, jump: false, shoot: fa
 export function installMobileControls(game) {
   const controls = document.querySelector('.touch-controls');
   if (!controls) return;
-  const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-    || navigator.userAgentData?.mobile === true;
+  const detectMobileDevice = () => {
+    const touchScreen = navigator.maxTouchPoints > 0 || 'ontouchstart' in window
+      || window.matchMedia('(pointer: coarse)').matches;
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+      || navigator.userAgentData?.mobile === true
+      || (touchScreen && window.matchMedia('(max-width: 1024px)').matches);
+  };
+  let isMobileDevice = detectMobileDevice();
   document.body.classList.toggle('is-mobile-device', isMobileDevice);
   const held = new Map();
   const buttons = [...controls.querySelectorAll('button')];
@@ -23,6 +29,8 @@ export function installMobileControls(game) {
     controls.style.setProperty('--controls-size', `${size}px`);
   };
   game.scale.on('resize', alignControls);
+  window.addEventListener('resize', alignControls);
+  window.visualViewport?.addEventListener('resize', alignControls);
   const resizeObserver = new ResizeObserver(alignControls);
   resizeObserver.observe(controls.parentElement);
   alignControls();
@@ -56,7 +64,12 @@ export function installMobileControls(game) {
   }
   window.addEventListener('blur', reset);
   window.addEventListener('pagehide', reset);
-  window.addEventListener('orientationchange', reset);
+  window.addEventListener('orientationchange', () => {
+    isMobileDevice = detectMobileDevice();
+    document.body.classList.toggle('is-mobile-device', isMobileDevice);
+    reset();
+    requestAnimationFrame(alignControls);
+  });
   document.addEventListener('visibilitychange', reset);
   let wasPlayable;
   let watchedScene;
