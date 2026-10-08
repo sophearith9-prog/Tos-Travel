@@ -98,7 +98,7 @@ export class LoginScene extends Phaser.Scene {
       </label>
       <label style="font-size:11px;font-weight:bold;letter-spacing:1px">PASSWORD
         <input name="password" type="password" required minlength="6" maxlength="72" autocomplete="${creating ? 'new-password' : 'current-password'}" placeholder="At least 6 characters" style="display:block;width:100%;height:34px;margin-top:4px;padding:0 10px;border:1px solid #80643d;border-radius:8px;background:#2e2923;color:#fff1d3;font:13px Trebuchet MS,Arial,sans-serif;outline-color:#ffcf70">
-      </label>
+      </label><br>
       <button type="submit" style="height:38px;margin-top:2px;border:0;border-radius:9px;background:#ffcf70;color:#33251a;font:bold 12px Trebuchet MS,Arial,sans-serif;letter-spacing:1px;cursor:pointer">${creating ? 'CREATE LOCAL ACCOUNT' : 'LOG IN  ›'}</button>
       <!-- <button type="button" name="switch" style="height:24px;border:0;background:transparent;color:#f0c16f;font:bold 10px Trebuchet MS,Arial,sans-serif;cursor:pointer">${creating ? 'I ALREADY HAVE AN ACCOUNT' : 'CREATE A NEW ACCOUNT'}</button> -->
     `;
