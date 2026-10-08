@@ -94,15 +94,15 @@ export class LoginScene extends Phaser.Scene {
     const creating = this.mode === 'create';
     this.form.innerHTML = `
       <label style="font-size:11px;font-weight:bold;letter-spacing:1px">PLAYER NAME
-        <input name="username" required minlength="3" maxlength="18" autocomplete="username" pattern="[A-Za-z0-9._-]+" placeholder="3–18 letters or numbers" style="display:block;width:100%;height:34px;margin-top:4px;padding:0 10px;border:1px solid #80643d;border-radius:8px;background:#2e2923;color:#fff1d3;font:13px Trebuchet MS,Arial,sans-serif;outline-color:#ffcf70">
+        <input name="username" required minlength="3" maxlength="18" autocomplete="username" placeholder="3-18 letters or numbers" style="display:block;width:100%;height:34px;margin-top:4px;padding:0 10px;border:1px solid #80643d;border-radius:8px;background:#2e2923;color:#fff1d3;font:13px Trebuchet MS,Arial,sans-serif;outline-color:#ffcf70">
       </label>
       <label style="font-size:11px;font-weight:bold;letter-spacing:1px">PASSWORD
         <input name="password" type="password" required minlength="6" maxlength="72" autocomplete="${creating ? 'new-password' : 'current-password'}" placeholder="At least 6 characters" style="display:block;width:100%;height:34px;margin-top:4px;padding:0 10px;border:1px solid #80643d;border-radius:8px;background:#2e2923;color:#fff1d3;font:13px Trebuchet MS,Arial,sans-serif;outline-color:#ffcf70">
-      </label><br>
-      <button type="submit" style="height:38px;margin-top:2px;border:0;border-radius:9px;background:#ffcf70;color:#33251a;font:bold 12px Trebuchet MS,Arial,sans-serif;letter-spacing:1px;cursor:pointer">${creating ? 'CREATE LOCAL ACCOUNT' : 'LOG IN  ›'}</button>
+      </label>
+      <button type="submit" style="height:38px;margin-top:2px;border:0;border-radius:9px;background:#ffcf70;color:#33251a;font:bold 12px Trebuchet MS,Arial,sans-serif;letter-spacing:1px;cursor:pointer">${creating ? 'CREATE LOCAL ACCOUNT' : 'LOG IN >'}</button>
       <!-- <button type="button" name="switch" style="height:24px;border:0;background:transparent;color:#f0c16f;font:bold 10px Trebuchet MS,Arial,sans-serif;cursor:pointer">${creating ? 'I ALREADY HAVE AN ACCOUNT' : 'CREATE A NEW ACCOUNT'}</button> -->
     `;
-    this.form.querySelector('[name="switch"]').addEventListener('click', () => {
+    this.form.querySelector('[name="switch"]')?.addEventListener('click', () => {
       this.mode = creating ? 'login' : 'create';
       this.status.setText(creating ? 'Sign in to continue your adventure.' : 'Choose a name and password for this device.');
       this.renderForm();
@@ -116,17 +116,17 @@ export class LoginScene extends Phaser.Scene {
     const username = usernameInput.value.trim().toLowerCase();
     const password = passwordInput.value;
     if (!/^[a-z0-9._-]{3,18}$/.test(username)) {
-      this.status.setColor('#ff9d79').setText('Use 3–18 letters, numbers, dots, dashes, or underscores.');
+      this.status.setColor('#ff9d79').setText('Use 3-18 letters, numbers, dots, dashes, or underscores.');
       return;
     }
     if (password.length < 6 || password.length > 72) {
-      this.status.setColor('#ff9d79').setText('Your password must be 6–72 characters.');
+      this.status.setColor('#ff9d79').setText('Your password must be 6-72 characters.');
       return;
     }
     const button = this.form.querySelector('button[type="submit"]');
     button.disabled = true;
-    button.textContent = 'PLEASE WAIT…';
-    this.status.setColor('#d8c5a7').setText('Securing your local account…');
+    button.textContent = 'PLEASE WAIT...';
+    this.status.setColor('#d8c5a7').setText('Securing your local account...');
     try {
       await this.adminSeedPromise;
       if (this.adminSeedError) throw this.adminSeedError;
@@ -143,7 +143,7 @@ export class LoginScene extends Phaser.Scene {
         }
       }
       sessionStorage.setItem(SESSION_KEY, username);
-      this.status.setColor('#b8e5b5').setText(`Welcome, ${username}! Opening the game…`);
+      this.status.setColor('#b8e5b5').setText(`Welcome, ${username}! Opening the game...`);
       this.formElement.setVisible(false);
       this.time.delayedCall(450, () => fadeToScene(this, 'MainMenuScene', { profile: username }));
     } catch (error) {
@@ -151,7 +151,7 @@ export class LoginScene extends Phaser.Scene {
         ? 'This browser has no space left to save your account.'
         : error?.message || 'Could not save this local account.');
       button.disabled = false;
-      button.textContent = this.mode === 'create' ? 'CREATE LOCAL ACCOUNT' : 'LOG IN  ›';
+      button.textContent = this.mode === 'create' ? 'CREATE LOCAL ACCOUNT' : 'LOG IN >';
     }
   }
 }

@@ -50,7 +50,7 @@ export class MainMenuScene extends Phaser.Scene {
       signOut.on('pointerout', () => signOut.setColor('#f0d6a5'));
       signOut.on('pointerdown', () => {
         sessionStorage.removeItem('tos-travel-local-session');
-        fadeToScene(this, 'LoginScene');
+        fadeToScene(this, 'IntroScene');
       });
     }
     this.add.image(206, 137, 'game-logo').setDisplaySize(300, 130);
