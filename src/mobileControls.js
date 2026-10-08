@@ -14,7 +14,7 @@ export function installMobileControls(game) {
     const canvas = game.canvas.getBoundingClientRect();
     const container = controls.parentElement.getBoundingClientRect();
     // Keep touch targets in screen pixels so small phones do not shrink them.
-    const size = Math.max(44, Math.min(52, canvas.width / 8));
+    const size = Math.max(50, Math.min(60, canvas.width / 7.5));
     const height = size + 8;
     controls.style.setProperty('--controls-left', `${canvas.left - container.left}px`);
     controls.style.setProperty('--controls-top', `${canvas.top - container.top + canvas.height - height}px`);
