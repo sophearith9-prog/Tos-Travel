@@ -33,22 +33,79 @@ export function prepareProvinceTerrain(scene, province) {
   texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);return key;
 }
 
+export function prepareLevel4AtlasTiles(scene) {
+  const key = 'level4-jungle-tiles';
+  if (scene.textures.exists(key)) return key;
+  const source = scene.textures.get('temple-jungle-atlas').getSourceImage();
+  const texture = scene.textures.createCanvas(key, 216, 72);
+  const ctx = texture.context;
+  ctx.imageSmoothingEnabled = false;
+  // Each source cutout is resized to the game's native 18px tile.
+  const crops = [
+    [12,14,72,62],[98,14,43,62],[148,14,62,58],[212,14,62,58],[278,14,58,58],[340,14,64,64],
+    [528,14,54,50],[586,14,54,50],[644,14,54,50],[528,158,54,54],[586,158,54,54],[644,158,54,54],
+    [12,575,66,142],[88,597,67,124],[12,738,70,62],[87,738,70,62],[160,738,70,62],[236,738,70,62],
+    [530,218,54,54],[588,218,54,54],[646,218,54,54],[704,218,54,54],[762,218,54,54],[820,218,54,54],
+    [878,15,54,55],[936,15,54,55],[994,15,54,55],[1052,15,54,55],[1110,15,54,55],[1168,15,54,55],
+    [1208,580,62,176],[1274,580,62,176],[1340,580,62,176],[1406,580,62,176],[1470,580,62,176],[1220,780,62,70],
+    [828,832,54,54],[886,832,54,54],[944,832,54,54],[1002,832,54,54],[1060,832,54,54],[1118,832,54,54],
+    [1176,832,54,54],[1234,832,54,54],[1292,832,54,54],[1350,832,54,54],[1408,832,54,54],[1466,832,54,54]
+  ];
+  crops.forEach(([sx, sy, sw, sh], index) => {
+    const x = index % 12 * 18, y = Math.floor(index / 12) * 18;
+    ctx.drawImage(source, sx, sy, sw, sh, x, y, 18, 18);
+  });
+  texture.refresh();
+  texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  return key;
+}
+
 // Native pixel scenery shares the game's blocky drawing style and province palette.
 export function prepareProvinceSceneryTexture(scene, province) {
   const key = province.id === 'banteay-meanchey' && scene.textures.exists('banteay-countryside')
     ? 'banteay-countryside' : `province-${province.id}`;
   if (!scene.textures.exists(key)) {
-    const texture = scene.textures.createCanvas(key, 400, 225);
+    const angkorSunset = province.id === 'siem-reap';
+    const texture = scene.textures.createCanvas(key, angkorSunset ? 800 : 400, angkorSunset ? 450 : 225);
     const ctx = texture.context;
     ctx.imageSmoothingEnabled = false;
+    if (angkorSunset) ctx.scale(2, 2);
     const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
     const polygon = (points, color) => {
       ctx.fillStyle = color; ctx.beginPath(); points.forEach(([x,y], i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.closePath(); ctx.fill();
     };
     const night = province.theme === 'palace-night';
     rect(0, 0, 400, 225, province.sky);
-    rect(0, 75, 400, 70, night ? '#354866' : '#e5d6ac');
-    rect(0, 125, 400, 100, province.land);
+    if (angkorSunset) {
+      rect(0, 0, 400, 44, '#cf6547');
+      rect(0, 44, 400, 37, '#e67b4a');
+      rect(0, 81, 400, 39, '#f2a255');
+      rect(0, 120, 400, 31, '#f2bf69');
+      for (let i = 0; i < 9; i++) {
+        const x = (i * 67 + 18) % 400, y = 24 + (i % 4) * 22;
+        rect(x, y, 28 + i % 3 * 9, 2, i % 2 ? '#f4ac69' : '#f6c478');
+        rect(x + 7, y + 4, 17, 1, '#d86c4a');
+      }
+      // Long, soft sunset rays and distant haze make the skyline feel less flat.
+      for (let i = 0; i < 7; i++) {
+        const x = 250 + i * 12;
+        polygon([[x, 112], [x + 5, 112], [x + 50, 151], [x + 32, 151]], i % 2 ? '#efaa5b' : '#f5bd70');
+      }
+      for (const [x, y, w] of [[17, 58, 62], [103, 38, 47], [224, 56, 72], [337, 38, 49]]) {
+        rect(x, y, w, 2, '#f8bf78');
+        rect(x + 10, y + 4, w * 0.62, 2, '#f5a66a');
+        rect(x + 5, y + 7, w * 0.35, 1, '#cf704f');
+      }
+      ctx.fillStyle = '#ffe096'; ctx.beginPath(); ctx.arc(321, 96, 25, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ffd17c'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(321, 96, 31, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+      // Thin atmospheric bands sit behind the temple silhouettes.
+      rect(0, 128, 400, 2, '#f8c877'); rect(0, 137, 400, 1, '#f4a86b');
+      rect(0, 151, 400, 74, '#34483a');
+    } else {
+      rect(0, 75, 400, 70, night ? '#354866' : '#e5d6ac');
+      rect(0, 125, 400, 100, province.land);
+    }
     rect(night ? 330 : 304, 43, 22, 22, night ? '#fff1c5' : '#ffe5a2');
     for (let i = 0; i < 6; i++) {
       const x = (i * 83 + 21) % 400, y = 39 + i % 3 * 15;
@@ -169,7 +226,19 @@ export function prepareProvinceSceneryTexture(scene, province) {
       if(theme==='hill-pagoda')temple(100,165,false,false);
     } else if (['angkor','temple-lake','forest-temple','cliff-temple','rice-temple','brick-temple'].includes(theme)) {
       if(theme==='cliff-temple'){hill(165,181,250,96,'#70866a');rect(62,164,210,24,'#626b54');temple(165,161);}
-      else {water(174,51);temple(205,173,theme==='brick-temple',theme==='angkor');}
+      else {
+        if (angkorSunset) {
+          // Far towers fade into the sunset; nearer roofs use warmer stone highlights.
+          for (const [x,y] of [[36,174],[89,162],[324,166],[371,176]]) temple(x,y,false,true);
+          hill(200,181,430,76,'#526344');
+          for (let x = 20; x < 400; x += 34) {
+            const y = 143 + (x * 7 % 17);
+            rect(x, y, 18 + x % 3 * 7, 2, '#edb56b');
+            rect(x + 5, y + 3, 13, 1, '#d78658');
+          }
+        }
+        water(174,51);temple(205,173,theme==='brick-temple',theme==='angkor');
+      }
       [30,365].forEach(x=>tree(x,211,68));
       [72,325].forEach(x=>palm(x,208));
       if(theme==='temple-lake')for(let i=0;i<4;i++){rect(65+i*14,185,2,10,'#ddd7b4');rect(65+i*14,183,7,2,'#eee5c9');}
@@ -210,7 +279,9 @@ export function addProvinceScenery(scene, province) {
   const key = prepareProvinceSceneryTexture(scene, province);
   const zoom = scene.cameras.main.zoom;
   if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
+  else if (province.id === 'siem-reap') addScrollingBackdrop(scene, key, -20, 0.20, true);
   else scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);
+  if (province.id === 'siem-reap') addLevel4AtlasLandmarks(scene);
   if (scene.currentLevel !== 5 && scene.currentLevel !== 6) {
   const caption = scene.screenText(400,128,`${province.khmer} · ${province.places}`,{
     fontFamily:'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif',fontSize:'12px',color:'#fff2cd',
@@ -218,4 +289,39 @@ export function addProvinceScenery(scene, province) {
   }).setOrigin(0.5).setDepth(200);
   scene.tweens.add({targets:caption,alpha:0,delay:2500,duration:600});
   }
+}
+
+function addLevel4AtlasLandmarks(scene) {
+  if (!scene.textures.exists('temple-jungle-atlas')) return;
+  const source = scene.textures.get('temple-jungle-atlas').getSourceImage();
+  const groundY = 11 * 18;
+  const place = (name, sx, sy, sw, sh, x, baseY, scale, depth = -8) => {
+    const key = `level4-landmark-${name}`;
+    if (!scene.textures.exists(key)) {
+      const texture = scene.textures.createCanvas(key, sw, sh);
+      texture.context.imageSmoothingEnabled = false;
+      texture.context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+      texture.refresh();
+      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    }
+    scene.add.image(x, baseY, key).setOrigin(0.5, 1).setScale(scale).setDepth(depth);
+  };
+  // Large silhouettes give the long route distinct landmarks as the camera advances.
+  place('falls-west', 5, 575, 78, 145, 410, groundY, 0.62);
+  place('gate-west', 1310, 0, 220, 170, 870, groundY, 0.48);
+  place('palm-mid', 1334, 579, 88, 180, 1390, groundY, 0.53);
+  place('faces', 405, 300, 160, 185, 1810, groundY, 0.46);
+  place('gallery-east', 1195, 175, 330, 185, 2350, groundY, 0.40);
+  place('falls-east', 5, 575, 78, 145, 2910, groundY, 0.62);
+  place('palm-east', 1410, 579, 95, 185, 3330, groundY, 0.54);
+  // Low flowering jungle growth fills the quiet stretches between the large ruins.
+  place('fern-west', 970, 812, 88, 72, 610, groundY, 0.42);
+  place('lotus-planter-west', 884, 746, 82, 73, 1040, groundY, 0.40);
+  place('flowering-fern-mid', 1060, 812, 94, 72, 1580, groundY, 0.42);
+  place('fern-gallery', 970, 812, 88, 72, 2160, groundY, 0.42);
+  place('lotus-planter-east', 884, 746, 82, 73, 2780, groundY, 0.40);
+  place('flowering-fern-east', 1060, 812, 94, 72, 3160, groundY, 0.42);
+  // A few vines hang into the high route without obscuring the landings.
+  place('hanging-vines', 1370, 370, 150, 190, 1080, 105, 0.34, 2);
+  place('hanging-vines-east', 1370, 370, 150, 190, 2560, 105, 0.34, 2);
 }

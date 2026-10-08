@@ -129,6 +129,7 @@ export const LEVEL_CONFIGS = {
       { x: 920, y: 80 },
       //{ x: 1260, y: 100 },
       { x: 1440, y: 125 },
+      { x: 1790, y: 145, kind: 'stone-guardian' },
       //{ x: 1770, y: 125 },
       { x: 2150, y: 90 },
       { x: 2570, y: 170 },

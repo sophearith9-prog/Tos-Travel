@@ -2,11 +2,50 @@ import { touchControls } from './mobileControls.js';
 import { damageBoss, updateFinalBoss } from './finalBoss.js';
 import { addArrowAmmo, MAX_ARROW_AMMO } from './arrowRules.js';
 import { TOTAL_LEVELS } from './levels/provinceRoute.js';
+import { playSound } from './ui.js';
+import { audioSettings } from './audioSettings.js';
+
+// Synthesize short, original guardian cues through Phaser's Web Audio context.
+// This keeps the enemy audible without adding or downloading external audio files.
+function playGuardianSound(scene, kind) {
+  if (!audioSettings.sound) return;
+  const manager = scene.sound;
+  const context = manager?.context;
+  if (!context?.createOscillator) return;
+  const profiles = {
+    step:   { from: 105, to: 48, duration: 0.12, peak: 0.11, wave: 'square', cutoff: 420 },
+    jump:   { from: 210, to: 82, duration: 0.24, peak: 0.10, wave: 'triangle', cutoff: 900 },
+    attack: { from: 170, to: 42, duration: 0.34, peak: 0.16, wave: 'sawtooth', cutoff: 720 },
+    impact: { from: 92, to: 35, duration: 0.18, peak: 0.18, wave: 'square', cutoff: 300 }
+  };
+  const sound = profiles[kind];
+  if (!sound) return;
+  const now = context.currentTime;
+  const oscillator = context.createOscillator();
+  const filter = context.createBiquadFilter();
+  const gain = context.createGain();
+  const destination = manager.masterVolumeNode || context.destination;
+  oscillator.type = sound.wave;
+  oscillator.frequency.setValueAtTime(sound.from, now);
+  oscillator.frequency.exponentialRampToValueAtTime(sound.to, now + sound.duration);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(sound.cutoff, now);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(100, sound.cutoff * 0.45), now + sound.duration);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(sound.peak, now + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + sound.duration);
+  oscillator.connect(filter);
+  filter.connect(gain);
+  gain.connect(destination);
+  oscillator.start(now);
+  oscillator.stop(now + sound.duration + 0.01);
+}
 
 export function installCombat(scene) {
   scene.arrows = Math.min(MAX_ARROW_AMMO,
     Math.max(0, scene.currentLevel >= 4 ? (scene.arrows || 0) : 0));
   scene.nextShot = 0;
+  scene.nextMeleeAttack = 0;
   scene.arrowProjectiles = scene.physics.add.group({ allowGravity: false });
   scene.rockProjectiles = scene.physics.add.group();
   if (!scene.textures.exists('guardian-rock')) {
@@ -38,6 +77,12 @@ export function installCombat(scene) {
     if (!arrow.active || !enemy.active || !enemy.body.enable || scene.isLevelFinished) return;
     retireRock(scene, arrow);
     if (enemy.isBoss) { damageBoss(scene, enemy); return; }
+    if (enemy.hitPoints > 1) {
+      enemy.hitPoints--;
+      enemy.setTint(0xffffff);
+      scene.time.delayedCall(110, () => { if (enemy.active) enemy.clearTint(); });
+      return;
+    }
     enemy.disableBody(true, true);
     scene.awardComboPoints(200, enemy.x, enemy.y - 12);
     scene.updateHUD();
@@ -46,6 +91,7 @@ export function installCombat(scene) {
   scene.bow = scene.add.graphics().setDepth(12).setVisible(false);
   if (scene.input.keyboard) {
     scene.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
+    scene.meleeKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     const toggleBow = event => {
       if (event.repeat || scene.currentLevel < 4 || scene.isLevelFinished || !scene.scene.isActive()) return;
       scene.bow.setVisible(!scene.bow.visible);
@@ -54,12 +100,59 @@ export function installCombat(scene) {
     scene.events.once('shutdown', () => scene.input.keyboard.off('keydown-B', toggleBow));
   }
   if (scene.currentLevel >= 4) {
-    scene.arrowText = scene.screenText(18, 90, `ARROWS: ${scene.arrows}  |  F: SHOOT  |  B: BOW`, {
+    scene.arrowText = scene.screenText(18, 90, `ARROWS: ${scene.arrows}  |  E: ATTACK  |  F: SHOOT  |  B: BOW`, {
       fontSize: '12px', fontStyle: 'bold', color: '#ffe1a3',
       stroke: '#17271f', strokeThickness: 3
     }).setDepth(210);
     scene.showFloatingText(scene.player.x + 50, scene.player.y - 25, 'Hit ? boxes for arrows', '#ffe1a3');
   }
+}
+
+function meleeAttack(scene) {
+  if (!touchControls.attack && !scene.meleeKey?.isDown) return;
+  const now = scene.time.now;
+  if (now < scene.nextMeleeAttack || scene.isLevelFinished || !scene.player.body?.enable) return;
+  scene.nextMeleeAttack = now + 520;
+
+  const player = scene.player;
+  scene.meleeAnimationUntil = now + 260;
+  player.play('player-attack');
+  const direction = player.flipX ? -1 : 1;
+  const centerY = player.body.center.y;
+  const reach = 48;
+  const target = scene.enemies.getChildren()
+    .filter(enemy => enemy.active && enemy.body?.enable && !enemy.isBoss &&
+      (enemy.x - player.x) * direction >= -2 &&
+      (enemy.x - player.x) * direction <= reach &&
+      Math.abs(enemy.body.center.y - centerY) < 34)
+    .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+
+  // A quick golden swipe makes the close-range punch readable at game scale.
+  const slash = scene.add.graphics().setDepth(13);
+  const x = player.x + direction * 16;
+  slash.lineStyle(4, 0xffc85a, 0.95).beginPath()
+    .moveTo(x, centerY - 12).lineTo(x + direction * 13, centerY)
+    .lineTo(x, centerY + 12).strokePath();
+  slash.lineStyle(2, 0xfff0b0, 1).beginPath()
+    .moveTo(x + direction * 2, centerY - 7).lineTo(x + direction * 9, centerY)
+    .lineTo(x + direction * 2, centerY + 7).strokePath();
+  scene.time.delayedCall(130, () => slash.destroy());
+  player.setTint(0xffdfa0);
+  scene.time.delayedCall(90, () => { if (player.active) player.clearTint(); });
+  playSound(scene, 'stomp', { volume: 0.35, rate: 1.35 });
+
+  if (!target) return;
+  if (target.hitPoints > 1) {
+    target.hitPoints--;
+    target.setTint(0xffffff);
+    scene.time.delayedCall(110, () => { if (target.active) target.clearTint(); });
+    scene.showFloatingText(target.x, target.y - 24, 'CRACK!', '#ffe2a0');
+    return;
+  }
+  target.disableBody(true, true);
+  scene.awardComboPoints(200, target.x, target.y - 12);
+  scene.updateHUD();
+  target.destroy();
 }
 
 function patrolSurface(scene, column, row) {
@@ -91,11 +184,14 @@ export function setupEnemy(scene, enemy, index, variant = index % 3) {
   enemy.patrolDirection = -1;
   enemy.attackUntil = 0;
   enemy.nextAttack = scene.time.now + 3000;
+  enemy.nextFootstep = 0;
   enemy.patrolOrigin = enemy.x;
   enemy.nextJump = scene.time.now + 1000 + Math.random() * 2000;
   enemy.airSpeed = 0;
-  enemy.play(enemy.texture.key === 'enemy-guardians'
-    ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk');
+  if (enemy.enemyKind !== 'stone-guardian') {
+    enemy.play(enemy.texture.key === 'enemy-guardians'
+      ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk');
+  }
 }
 
 export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
@@ -126,6 +222,7 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
           const strong = choice >= 0.4;
           enemy.airSpeed = strong ? 125 + Math.random() * 25 : 65 + Math.random() * 20;
           enemy.setVelocityY(strong ? -285 : -145);
+          if (Math.abs(scene.player.x - enemy.x) < 420) playGuardianSound(scene, 'jump');
         }
       }
     } else if (wall || gap) {
@@ -136,9 +233,15 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
   }
   const targetSpeed = (enemy.airSpeed || speed) * enemy.patrolDirection;
   enemy.setVelocityX(Phaser.Math.Linear(body.velocity.x, targetSpeed, 0.28));
+  if (body.blocked.down && Math.abs(targetSpeed) > 30 && now >= enemy.nextFootstep) {
+    if (Math.abs(scene.player.x - enemy.x) < 420) playGuardianSound(scene, 'step');
+    enemy.nextFootstep = now + 430;
+  }
   enemy.setFlipX(enemy.patrolDirection > 0);
-  enemy.play(enemy.texture.key === 'enemy-guardians'
-    ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk', true);
+  if (enemy.enemyKind !== 'stone-guardian') {
+    enemy.play(enemy.texture.key === 'enemy-guardians'
+      ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk', true);
+  }
 }
 
 export function throwRock(scene, enemy) {
@@ -203,6 +306,7 @@ export function shootBow(scene) {
 
 export function updateCombat(scene) {
   const now = scene.time.now;
+  meleeAttack(scene);
   scene.enemies.getChildren().forEach(enemy => {
     if (!enemy.active || !enemy.body?.enable) return;
     if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }
@@ -210,18 +314,45 @@ export function updateCombat(scene) {
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);
     if (now < enemy.attackUntil) { enemy.setVelocityX(0); return; }
+    if (enemy.enemyKind === 'stone-guardian') {
+      if (Math.abs(dx) < 52 && dy < 34 && enemy.body.blocked.down && now >= enemy.nextAttack) {
+        enemy.setVelocityX(0);
+        enemy.setFlipX(dx > 0);
+        enemy.attackUntil = now + 720;
+        enemy.nextAttack = now + 1900;
+        playGuardianSound(scene, 'attack');
+        enemy.setTint(0xffc05e);
+        scene.time.delayedCall(200, () => {
+          if (enemy.active) enemy.clearTint();
+          if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished || !scene.player.body?.enable) return;
+          if (Math.abs(scene.player.x - enemy.x) < 58 &&
+              Math.abs(scene.player.body.center.y - enemy.body.center.y) < 38) {
+            playGuardianSound(scene, 'impact');
+            scene.handlePlayerEnemyCollision(scene.player, enemy, true);
+          }
+        });
+        return;
+      }
+      enemy.patrolDirection = Math.abs(dx) < 220 ? (dx >= 0 ? 1 : -1) : enemy.patrolDirection;
+      // Keep the giant guardian's jump timer active so it can pursue the player
+      // across ledges instead of walking in place at a gap.
+      roamEnemy(scene, enemy, now, Math.abs(dx) < 220 ? scene.enemySpeed * 0.55 : scene.enemySpeed * 0.4);
+      return;
+    }
     const customEnemy = enemy.texture.key === 'enemy-guardians';
-    const canFight = customEnemy && (scene.currentLevel <= 2 || enemy.guardianVariant === 2);
+    const canFight = customEnemy;
     if (canFight && Math.abs(dx) < 28 && dy < 24 && enemy.body.blocked.down && now >= enemy.nextAttack) {
         enemy.setVelocityX(0);
         enemy.setFlipX(dx > 0);
         enemy.attackUntil = now + 650;
         enemy.nextAttack = now + 1200;
+        playGuardianSound(scene, 'attack');
         enemy.play(`guardian-attack-${enemy.guardianVariant}`);
         scene.time.delayedCall(220, () => {
           if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished || !scene.player.body?.enable) return;
           if (Math.abs(scene.player.x - enemy.x) < 32 &&
               Math.abs(scene.player.body.center.y - enemy.body.center.y) < 26) {
+            playGuardianSound(scene, 'impact');
             scene.handlePlayerEnemyCollision(scene.player, enemy, true);
           }
         });
@@ -238,6 +369,7 @@ export function updateCombat(scene) {
       enemy.setVelocityX(0);
       enemy.attackUntil = now + 700;
       enemy.nextAttack = now + 3000;
+      playGuardianSound(scene, 'attack');
       enemy.play(`guardian-attack-${enemy.guardianVariant}`);
       // The raised-arm and extended-arm frames now form the rock-throw animation.
       scene.time.delayedCall(350, () => {

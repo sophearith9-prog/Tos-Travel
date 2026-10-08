@@ -16,7 +16,7 @@ import { touchControls } from '../mobileControls.js';
 import { installCombat, setupEnemy, updateCombat, updateBowPose, grantBoxArrows } from '../combat.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
-import { addProvinceScenery, prepareProvinceTerrain } from '../provinceScenery.js';
+import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles } from '../provinceScenery.js';
 import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
@@ -78,6 +78,9 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel >= 3) {
       this.load.image('khmer-finish-house', 'assets/khmer-finish-house.png');
     }
+    if (this.currentLevel === 4) {
+      this.load.image('temple-jungle-atlas', 'assets/temple-jungle-expanded.png');
+    }
     if (this.currentLevel === 3) {
       this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
       this.load.image('temple-part-source', 'assets/templepart.png');
@@ -89,6 +92,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
     this.load.image('enemy-source', 'assets/khmer-guardian-animations.png');
+    this.load.image('stone-guardian', 'assets/stone-guardian.png');
     this.load.spritesheet('packed', 'assets/tilemap_packed.png', {
       frameWidth: 18,
       frameHeight: 18
@@ -107,6 +111,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    if (!sessionStorage.getItem('tos-travel-local-session')) {
+      this.scene.start('LoginScene');
+      return;
+    }
     fadeSceneIn(this, 520);
     prepareCharacterSkin(this);
     prepareEnemySkin(this);
@@ -152,6 +160,7 @@ export class GameScene extends Phaser.Scene {
       : prepareEnvironment(this);
     const tileImages = {
       tilemap_packed: groundTiles,
+      level4_jungle: this.currentLevel === 4 ? prepareLevel4AtlasTiles(this) : null,
       tiles: 'temple-decoration-tiles',
       temple_items: 'temple-items-tiles'
     };
@@ -167,6 +176,9 @@ export class GameScene extends Phaser.Scene {
       throw new Error('A level uses a tileset without a loaded image.');
     }
 
+    if (this.currentLevel === 4 && map.getLayer('Water')) {
+      map.createLayer('Water', tilesets, 0, 0).setDepth(-1);
+    }
     this.groundLayer = map.createLayer('Platforms', tilesets, 0, 0);
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
@@ -220,13 +232,24 @@ export class GameScene extends Phaser.Scene {
     if (config.enemies) {
       config.enemies.forEach((pos, index) => {
         const customEnemy = this.textures.exists('enemy-guardians');
-        const enemy = customEnemy
+        const stoneGuardian = pos.kind === 'stone-guardian';
+        const enemy = stoneGuardian
+          ? this.enemies.create(pos.x, pos.y, 'stone-guardian')
+          : customEnemy
           ? this.enemies.create(pos.x, pos.y, 'enemy-guardians', (index % 3) * 6)
           : this.enemies.create(pos.x, pos.y, 'packed', 22);
         enemy.setBounce(0);
         enemy.setCollideWorldBounds(true);
         enemy.setVelocityX(-this.enemySpeed);
-        if (customEnemy) {
+        if (stoneGuardian) {
+          const scale = 58 / Math.max(enemy.width, enemy.height);
+          enemy.setScale(scale).setOrigin(0.5, 1);
+          enemy.body.setSize(24 / scale, 19 / scale)
+            .setOffset((enemy.width - 24 / scale) / 2, enemy.height - 19 / scale);
+          enemy.enemyKind = 'stone-guardian';
+          enemy.hitPoints = 2;
+          enemy.setDepth(8);
+        } else if (customEnemy) {
           const scale = 28 / 96;
           enemy.setScale(scale).setOrigin(0.5, 1 - 9 / 28);
           enemy.body.setSize(14 / scale, 14 / scale)
@@ -636,6 +659,14 @@ export class GameScene extends Phaser.Scene {
         frameRate: 1
       });
     }
+    if (!this.anims.exists('player-attack')) {
+      this.anims.create({
+        key: 'player-attack',
+        frames: playerFrames([16, 17, 18], [25, 24, 25]),
+        frameRate: 14,
+        repeat: 0
+      });
+    }
     if (!this.anims.exists('enemy-walk')) {
       this.anims.create({
         key: 'enemy-walk',
@@ -1003,7 +1034,7 @@ export class GameScene extends Phaser.Scene {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
       // The final guardian requires arrow hits; stomping only bounces the player.
-      if (enemy.isBoss) return;
+      if (enemy.isBoss || enemy.enemyKind === 'stone-guardian') return;
       this.awardComboPoints(200, enemy.x, enemy.y - 8);
       this.updateHUD();
 
@@ -1210,22 +1241,26 @@ export class GameScene extends Phaser.Scene {
     const right = touchControls.right || (this.cursors && (this.cursors.right.isDown || (this.wasd && this.wasd.right.isDown)));
     const jump = touchControls.jump || (this.cursors && (this.cursors.up.isDown || (this.wasd && (this.wasd.up.isDown || this.wasd.space.isDown))));
     const moveSpeed = this.currentLevel === TOTAL_LEVELS && this.sprintKey?.isDown ? 230 : 150;
+    const attacking = this.time.now < (this.meleeAnimationUntil || 0);
 
     let targetVelocityX = 0;
+    if (attacking) {
+      if (this.player.anims.currentAnim?.key !== 'player-attack') this.player.play('player-attack');
+    }
     if (left) {
       targetVelocityX = -moveSpeed;
       this.player.setFlipX(true);
-      if (this.player.body.blocked.down) {
+      if (this.player.body.blocked.down && !attacking) {
         this.player.play('player-walk', true);
       }
     } else if (right) {
       targetVelocityX = moveSpeed;
       this.player.setFlipX(false);
-      if (this.player.body.blocked.down) {
+      if (this.player.body.blocked.down && !attacking) {
         this.player.play('player-walk', true);
       }
     } else {
-      if (this.player.body.blocked.down) {
+      if (this.player.body.blocked.down && !attacking) {
         this.player.play('player-idle', true);
       }
     }
@@ -1233,12 +1268,12 @@ export class GameScene extends Phaser.Scene {
 
     if (jump && this.player.body.blocked.down) {
       this.player.setVelocityY(-350);
-      this.player.play('player-jump', true);
+      if (!attacking) this.player.play('player-jump', true);
       playSound(this, 'jump', { volume: 0.4 });
     }
 
     if (!this.player.body.blocked.down) {
-      this.player.play('player-jump', true);
+      if (!attacking) this.player.play('player-jump', true);
     }
 
     const grounded = this.player.body.blocked.down;

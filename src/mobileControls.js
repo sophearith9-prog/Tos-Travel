@@ -1,4 +1,4 @@
-export const touchControls = { left: false, right: false, jump: false, shoot: false };
+export const touchControls = { left: false, right: false, jump: false, shoot: false, attack: false };
 
 export function installMobileControls(game) {
   const controls = document.querySelector('.touch-controls');
