@@ -56,7 +56,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.add.image(206, 137, 'game-logo').setDisplaySize(300, 130);
     this.add.text(69, 220, 'A little courage. A journey across Cambodia.\nExplore 24 provinces, the capital, and hidden treasures.', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
-      color: '#f0d6a5', lineSpacing: 6, wordWrap: { width: 277 }
+      color: '#f5f4f0', lineSpacing: 6, wordWrap: { width: 277 }
     });
     const start = () => this.beginJourney();
     button(this, 207, 315, 274, 'BEGIN JOURNEY  >', start, true);
