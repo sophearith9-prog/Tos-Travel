@@ -1,5 +1,5 @@
 // Mirror each repeat so the landscape scrolls without a hard edge or empty space.
-export function addScrollingBackdrop(scene, key, depth, parallax = 0.22, cropToView = false) {
+export function addScrollingBackdrop(scene, key, depth, parallax = 0.22, cropToView = false, preservePanorama = false) {
   const repeatKey = `${key}-panorama`;
   const source = scene.textures.get(key).getSourceImage();
   const viewRatio = 800 / 450;
@@ -16,13 +16,14 @@ export function addScrollingBackdrop(scene, key, depth, parallax = 0.22, cropToV
     ctx.drawImage(source, cropX, 0, cropWidth, source.height, 0, 0, cropWidth, source.height);
     ctx.restore();
     texture.refresh();
-    if (cropToView) texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    if (cropToView) texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
   }
   const zoom = scene.cameras.main.zoom;
   const width = 800 / zoom, height = 450 / zoom;
   const backdrop = scene.add.tileSprite(400, 225, width, height, repeatKey)
     .setScrollFactor(0).setDepth(depth)
-    .setTileScale(width / cropWidth, height / source.height);
+    .setTileScale(preservePanorama ? height / source.height : width / cropWidth,
+      height / source.height);
   const update = () => {
     // Track walking even while the camera is held at either end of the level.
     backdrop.tilePositionX = (scene.player.x - 50) * parallax / backdrop.tileScaleX;

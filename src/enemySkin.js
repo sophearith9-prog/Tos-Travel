@@ -2,7 +2,7 @@ export function prepareEnemySkin(scene) {
   if (scene.textures.exists('enemy-guardians') || !scene.textures.exists('enemy-source')) return;
   const source = scene.textures.get('enemy-source').getSourceImage();
   const texture = scene.textures.createCanvas('enemy-guardians', 96 * 18, 96);
-  texture.context.imageSmoothingEnabled = false;
+  texture.context.imageSmoothingEnabled = true;
   const crops = Array.from({ length: 18 }, (_, frame) => {
     const column = frame % 6, row = Math.floor(frame / 6);
     const x = Math.floor(column * source.width / 6), y = Math.floor(row * source.height / 3);
@@ -32,5 +32,5 @@ export function prepareEnemySkin(scene) {
     texture.add(frame, 0, frame * 96, 0, 96, 96);
   });
   texture.refresh();
-  texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
 }

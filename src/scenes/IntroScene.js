@@ -85,6 +85,6 @@ export class IntroScene extends Phaser.Scene {
   finishIntro() {
     if (this.finished) return;
     this.finished = true;
-    fadeToScene(this, 'LoginScene', undefined, { duration: 520 });
+    fadeToScene(this, 'MainMenuScene', undefined, { duration: 520 });
   }
 }

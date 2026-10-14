@@ -40,19 +40,6 @@ export class MainMenuScene extends Phaser.Scene {
     }
 
     label(this, 155, 48, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#f0bd68');
-    const signedInAs = sessionStorage.getItem('tos-travel-local-session');
-    if (signedInAs) {
-      const signOut = this.add.text(765, 48, `${signedInAs.toUpperCase()}  ·  LOG OUT`, {
-        fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '10px',
-        fontStyle: 'bold', color: '#f0d6a5', letterSpacing: 1
-      }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-      signOut.on('pointerover', () => signOut.setColor('#ffcf70'));
-      signOut.on('pointerout', () => signOut.setColor('#f0d6a5'));
-      signOut.on('pointerdown', () => {
-        sessionStorage.removeItem('tos-travel-local-session');
-        fadeToScene(this, 'IntroScene');
-      });
-    }
     this.add.image(206, 137, 'game-logo').setDisplaySize(300, 130);
     this.add.text(69, 220, 'A little courage. A journey across Cambodia.\nExplore 24 provinces, the capital, and hidden treasures.', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
@@ -86,10 +73,6 @@ export class MainMenuScene extends Phaser.Scene {
 
   beginJourney() {
     if (this.journeyStarted) return;
-    if (!sessionStorage.getItem('tos-travel-local-session')) {
-      fadeToScene(this, 'LoginScene');
-      return;
-    }
     this.journeyStarted = true;
     this.arrivalTweens?.forEach(tween => tween.stop());
     const data = { level: 1, score: 0, coins: 0, lives: 3 };

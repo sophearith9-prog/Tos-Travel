@@ -1,11 +1,13 @@
 // Transparent Khmer outfit sheet: five columns with four animation rows.
+export const PLAYER_CHARACTER_NAME = 'Vireak';
+
 export function prepareCharacterSkin(scene) {
   if (scene.textures.exists('player-character')) return;
   if (!scene.textures.exists('character-skin-source')) return;
   const source = scene.textures.get('character-skin-source').getSourceImage();
   const sheet = scene.textures.createCanvas('player-character', 96 * 5, 96 * 4);
   // Keep pose details sharp when reducing the artwork into animation frames.
-  sheet.context.imageSmoothingEnabled = false;
+  sheet.context.imageSmoothingEnabled = true;
   const rows = [0, 0.245, 0.485, 0.7, 1].map(y => Math.round(y * source.height));
   const frames = [];
   for (let row = 0; row < 4; row++) {
@@ -45,5 +47,5 @@ export function prepareCharacterSkin(scene) {
     sheet.add(row * 5 + col, 0, col * 96, row * 96, 96, 96);
   }
   sheet.refresh();
-  sheet.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  sheet.setFilter(Phaser.Textures.FilterMode.LINEAR);
 }

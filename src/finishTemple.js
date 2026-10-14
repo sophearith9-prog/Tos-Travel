@@ -11,13 +11,13 @@ export function addFinishTemple(scene, map) {
   // Level 2 finishes at the flag, without a temple or the original castle tiles.
   if (scene.currentLevel === 2) return;
   if (scene.currentLevel >= 3) {
-    scene.textures.get('khmer-finish-house').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.textures.get('khmer-finish-house').setFilter(Phaser.Textures.FilterMode.LINEAR);
     scene.add.image(center, ground, 'khmer-finish-house')
       .setOrigin(0.5, 1).setDisplaySize(112, 80).setDepth(-1);
     return;
   }
   if (scene.currentLevel === 1 && scene.textures.exists('khmer-entrance-gate')) {
-    scene.textures.get('khmer-entrance-gate').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.textures.get('khmer-entrance-gate').setFilter(Phaser.Textures.FilterMode.LINEAR);
     const temple = scene.add.image(center, ground + 5, 'khmer-entrance-gate')
       .setOrigin(0.5, 1).setDepth(-1);
     temple.setDisplaySize(216, 186);
@@ -99,7 +99,7 @@ function addAngkorPortal(scene, center, ground) {
     ctx.fillRect(0, 0, 64, 144);
     ctx.restore();
     texture.refresh();
-    texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
   }
   if (!scene.textures.exists(key)) return;
 

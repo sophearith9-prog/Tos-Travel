@@ -33,7 +33,7 @@ function preparePressurePlateTexture(scene) {
 
   const texture = scene.textures.createCanvas(key, 18, 18);
   const ctx = texture.context;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   // Bronze lotus switch set into a dark stone block.
   ctx.fillStyle = '#292b2a'; ctx.fillRect(0, 7, 18, 11);
   ctx.fillStyle = '#726044'; ctx.fillRect(1, 5, 16, 10);
@@ -45,7 +45,7 @@ function preparePressurePlateTexture(scene) {
   ctx.fillStyle = '#fff0b4'; ctx.fillRect(8, 8, 2, 2);
   ctx.fillStyle = '#40382b'; ctx.fillRect(3, 14, 12, 2);
   texture.refresh();
-  texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
 export function installLevelTwoTrial(scene) {

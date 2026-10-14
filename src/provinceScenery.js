@@ -6,7 +6,7 @@ export function prepareProvinceTerrain(scene, province) {
   const source = scene.textures.get('tiles').getSourceImage();
   const texture = scene.textures.createCanvas(key, source.width, source.height);
   const ctx = texture.context;
-  ctx.imageSmoothingEnabled = false;ctx.drawImage(source,0,0);
+  ctx.imageSmoothingEnabled = true;ctx.drawImage(source,0,0);
   const beach = ['island-coast','turquoise-coast'].includes(province.theme);
   const stone = ['palace-night','cliff-temple','brick-temple','angkor','forest-temple','temple-lake'].includes(province.theme);
   const banteay = province.id === 'banteay-meanchey';
@@ -30,7 +30,7 @@ export function prepareProvinceTerrain(scene, province) {
       ctx.fillStyle=banteay?'#78804e':beach?'#e6ce97':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
     ctx.restore();
   }
-  texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);return key;
+  texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.LINEAR);return key;
 }
 
 export function prepareLevel4AtlasTiles(scene) {
@@ -39,7 +39,7 @@ export function prepareLevel4AtlasTiles(scene) {
   const source = scene.textures.get('temple-jungle-atlas').getSourceImage();
   const texture = scene.textures.createCanvas(key, 216, 72);
   const ctx = texture.context;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   // Each source cutout is resized to the game's native 18px tile.
   const crops = [
     [12,14,72,62],[98,14,43,62],[148,14,62,58],[212,14,62,58],[278,14,58,58],[340,14,64,64],
@@ -56,8 +56,68 @@ export function prepareLevel4AtlasTiles(scene) {
     ctx.drawImage(source, sx, sy, sw, sh, x, y, 18, 18);
   });
   texture.refresh();
-  texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
   return key;
+}
+
+// Keep the Tiled collision layout, but render its solid surfaces in the
+// painterly stone style used by the Level 4 panorama.
+export function addLevel4PainterlyPlatforms(scene, map) {
+  const mapData = scene.cache.tilemap.get('level4')?.data;
+  const layerData = mapData?.layers?.find(layer => layer.name === 'Platforms' && layer.type === 'tilelayer');
+  const layer = map.getLayer('Platforms')?.tilemapLayer;
+  if (!mapData || !layerData?.data || !layer) return;
+
+  const packedGid = mapData.tilesets.find(tileset => tileset.name === 'tilemap_packed')?.firstgid ?? 1;
+  const jungleGid = mapData.tilesets.find(tileset => tileset.name === 'level4_jungle')?.firstgid;
+  const source = scene.textures.get('level4-painterly-platforms').getSourceImage();
+  const textureKey = 'level4-painterly-platform-strip';
+  if (!scene.textures.exists(textureKey)) {
+    const strip = scene.textures.createCanvas(textureKey, source.width, 300);
+    strip.context.imageSmoothingEnabled = true;
+    strip.context.drawImage(source, 0, 390, source.width, 300, 0, 0, source.width, 300);
+    strip.refresh();
+    strip.setFilter(Phaser.Textures.FilterMode.LINEAR);
+  }
+
+  const width = mapData.width, height = mapData.height;
+  const gidAt = (x, y) => (layerData.data[y * width + x] >>> 0) & 0x1fffffff;
+  const isSurface = gid => (gid >= packedGid && gid <= packedGid + 2)
+    || (jungleGid !== undefined && gid >= jungleGid && gid <= jungleGid + 5);
+  const tileSize = map.tileWidth;
+
+  for (let y = 0; y < height - 1; y++) {
+    let x = 0;
+    while (x < width) {
+      if (!isSurface(gidAt(x, y))) { x++; continue; }
+      const start = x;
+      while (x < width && isSurface(gidAt(x, y))) x++;
+      const end = x;
+      let supportRows = 1;
+      while (supportRows < 4 && y + supportRows < height) {
+        let hasSupport = false;
+        for (let tileX = start; tileX < end; tileX++) {
+          if (gidAt(tileX, y + supportRows) !== 0) { hasSupport = true; break; }
+        }
+        if (!hasSupport) break;
+        supportRows++;
+      }
+
+      for (let tileY = y; tileY < y + supportRows; tileY++) {
+        for (let tileX = start; tileX < end; tileX++) {
+          const tile = layer.getTileAt(tileX, tileY);
+          if (tile) tile.alpha = 0;
+        }
+      }
+
+      const runWidth = (end - start) * tileSize;
+      const platformHeight = supportRows * tileSize;
+      const platform = scene.add.tileSprite(start * tileSize, y * tileSize - 3,
+        runWidth, platformHeight, textureKey).setOrigin(0, 0).setDepth(-0.5);
+      const scaleY = platformHeight / 300;
+      platform.setTileScale(Math.max(0.08, Math.min(scaleY, runWidth / source.width)), scaleY);
+    }
+  }
 }
 
 // Native pixel scenery shares the game's blocky drawing style and province palette.
@@ -68,7 +128,7 @@ export function prepareProvinceSceneryTexture(scene, province) {
     const angkorSunset = province.id === 'siem-reap';
     const texture = scene.textures.createCanvas(key, angkorSunset ? 800 : 400, angkorSunset ? 450 : 225);
     const ctx = texture.context;
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     if (angkorSunset) ctx.scale(2, 2);
     const rect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
     const polygon = (points, color) => {
@@ -270,18 +330,23 @@ export function prepareProvinceSceneryTexture(scene, province) {
       if(['river-village','floating-village','angkor'].includes(theme))for(let i=0;i<5;i++)house(15+i*74,197-i%2*6);
       [21,371].forEach(x=>palm(x,211));
     }
-    texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+    texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
   }
   return key;
 }
 
 export function addProvinceScenery(scene, province) {
-  const key = prepareProvinceSceneryTexture(scene, province);
+  const wideAngkor = province.id === 'siem-reap'
+    && scene.textures.exists('angkor-painterly-background-wide');
+  const key = wideAngkor ? 'angkor-painterly-background-wide'
+    : prepareProvinceSceneryTexture(scene, province);
   const zoom = scene.cameras.main.zoom;
   if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
-  else if (province.id === 'siem-reap') addScrollingBackdrop(scene, key, -20, 0.20, true);
+  else if (province.id === 'siem-reap') {
+    addScrollingBackdrop(scene, key, -20, 0.20, !wideAngkor, wideAngkor);
+  }
   else scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);
-  if (province.id === 'siem-reap') addLevel4AtlasLandmarks(scene);
+  if (province.id === 'siem-reap' && !wideAngkor) addLevel4AtlasLandmarks(scene);
   if (scene.currentLevel !== 5 && scene.currentLevel !== 6) {
   const caption = scene.screenText(400,128,`${province.khmer} · ${province.places}`,{
     fontFamily:'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif',fontSize:'12px',color:'#fff2cd',
@@ -299,10 +364,10 @@ function addLevel4AtlasLandmarks(scene) {
     const key = `level4-landmark-${name}`;
     if (!scene.textures.exists(key)) {
       const texture = scene.textures.createCanvas(key, sw, sh);
-      texture.context.imageSmoothingEnabled = false;
+      texture.context.imageSmoothingEnabled = true;
       texture.context.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
       texture.refresh();
-      texture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
     scene.add.image(x, baseY, key).setOrigin(0.5, 1).setScale(scale).setDepth(depth);
   };

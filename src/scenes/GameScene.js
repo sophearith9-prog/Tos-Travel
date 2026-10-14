@@ -1,11 +1,11 @@
-﻿import { panel, label, button, playSound } from '../ui.js';
+import { panel, label, button, playSound } from '../ui.js';
 import { audioSettings } from '../audioSettings.js';
 import { MAX_ARROW_AMMO } from '../arrowRules.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { prepareEnvironment, addEnvironment } from '../environment.js';
-import { prepareCharacterSkin } from '../characterSkin.js';
+import { PLAYER_CHARACTER_NAME, prepareCharacterSkin } from '../characterSkin.js';
 import { prepareEnemySkin } from '../enemySkin.js';
 import { addFinishTemple } from '../finishTemple.js';
 import { addFinishFlag } from '../finishFlag.js';
@@ -16,7 +16,7 @@ import { touchControls } from '../mobileControls.js';
 import { installCombat, setupEnemy, updateCombat, updateBowPose, grantBoxArrows } from '../combat.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
-import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles } from '../provinceScenery.js';
+import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles, addLevel4PainterlyPlatforms } from '../provinceScenery.js';
 import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
@@ -48,7 +48,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    if (this.currentLevel <= 3) this.load.tilemapTiledJSON('level' + this.currentLevel, 'assets/level' + this.currentLevel + '.tmj');
+    if (this.currentLevel <= 4) this.load.tilemapTiledJSON('level' + this.currentLevel, 'assets/level' + this.currentLevel + '.tmj');
 
     this.load.image('tiles', 'assets/tilemap_packed.png');
     this.load.image('environment-source', 'assets/enviroment.jpg');
@@ -75,11 +75,20 @@ export class GameScene extends Phaser.Scene {
       this.load.image('temple-items-tiles', 'assets/temple_items.png');
       this.load.text('temple_items-definition', 'assets/temple_items.tsx');
     }
+    if (this.currentLevel === 4) {
+      // Tiled exports these Level 4 tilesets as external TSX definitions.
+      this.load.text('temple_items-definition', 'assets/temple_items.tsx');
+      this.load.text('lv4-definition', 'assets/lv4.tsx');
+      this.load.text('templetiless-definition', 'assets/templetiless.tsx');
+      this.load.image('temple-items-tiles', 'assets/temple_items.png');
+    }
     if (this.currentLevel >= 3) {
       this.load.image('khmer-finish-house', 'assets/khmer-finish-house.png');
     }
     if (this.currentLevel === 4) {
       this.load.image('temple-jungle-atlas', 'assets/temple-jungle-expanded.png');
+      this.load.image('angkor-painterly-background-wide', 'assets/angkor-painterly-background-wide.png');
+      this.load.image('level4-painterly-platforms', 'assets/level4-painterly-platforms.png');
     }
     if (this.currentLevel === 3) {
       this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
@@ -111,10 +120,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    if (!sessionStorage.getItem('tos-travel-local-session')) {
-      this.scene.start('LoginScene');
-      return;
-    }
     fadeSceneIn(this, 520);
     prepareCharacterSkin(this);
     prepareEnemySkin(this);
@@ -123,13 +128,13 @@ export class GameScene extends Phaser.Scene {
     const config = LEVEL_CONFIGS[this.currentLevel] || LEVEL_CONFIGS[1];
     this.province = config.province;
     const mapKey = 'level' + this.currentLevel;
-    if (config.province) {
+    if (config.province && this.currentLevel !== 4) {
       this.cache.tilemap.remove(mapKey);
       this.cache.tilemap.add(mapKey, { format: Phaser.Tilemaps.Formats.TILED_JSON, data: createProvinceMap(config) });
     }
     // Tiled may save this tileset externally after the map is edited.
     // Phaser needs its definition embedded before it parses tile IDs.
-    if (this.currentLevel === 2) {
+    if (this.currentLevel === 2 || this.currentLevel === 4) {
       const cachedMap = this.cache.tilemap.get(mapKey);
       cachedMap.data.tilesets = cachedMap.data.tilesets.map(tileset => {
         if (!tileset.source) return tileset;
@@ -147,7 +152,7 @@ export class GameScene extends Phaser.Scene {
         }
         return embedded;
       });
-      extendAngkorCauseway(cachedMap.data);
+      if (this.currentLevel === 2) extendAngkorCauseway(cachedMap.data);
     }
     const map = this.make.tilemap({ key: mapKey });
     this.map = map;
@@ -161,8 +166,10 @@ export class GameScene extends Phaser.Scene {
     const tileImages = {
       tilemap_packed: groundTiles,
       level4_jungle: this.currentLevel === 4 ? prepareLevel4AtlasTiles(this) : null,
+      lv4: 'angkor-painterly-background-wide',
       tiles: 'temple-decoration-tiles',
-      temple_items: 'temple-items-tiles'
+      temple_items: 'temple-items-tiles',
+      templetiles: 'temple-jungle-atlas'
     };
     const tilesets = map.tilesets.map(tileset => {
       const image = tileImages[tileset.name];
@@ -183,6 +190,7 @@ export class GameScene extends Phaser.Scene {
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
       if (this.currentLevel === 3) this.groundLayer.setTint(0x82958b);
+      if (this.currentLevel === 4) addLevel4PainterlyPlatforms(this, map);
     }
     if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
     if (this.currentLevel !== 1) addEnvironment(this, map);
@@ -214,7 +222,11 @@ export class GameScene extends Phaser.Scene {
 
     // Spawn Coins from level config
     this.coinsGroup = this.physics.add.staticGroup();
-    const looseCoins = this.prepareCoinBlocks(config.coins || []);
+    const tiledCoins = this.currentLevel === 4
+      ? map.getObjectLayer('Coins')?.objects?.map(({ x, y }) => ({ x, y }))
+      : null;
+    const coinPlacements = tiledCoins?.length ? tiledCoins : config.coins || [];
+    const looseCoins = this.prepareCoinBlocks(coinPlacements);
     if (looseCoins.length) {
       looseCoins.forEach(pos => {
         const coin = this.coinsGroup.create(pos.x, pos.y, 'khmer-coin', 2);
@@ -229,8 +241,14 @@ export class GameScene extends Phaser.Scene {
     // Spawn Enemies from level config
     this.enemies = this.physics.add.group();
     this.enemySpeed = config.enemySpeed || 40;
-    if (config.enemies) {
-      config.enemies.forEach((pos, index) => {
+    const tiledEnemies = this.currentLevel === 4
+      ? map.getObjectLayer('Enemies')?.objects?.map(({ x, y, properties = [] }) => ({
+        x, y, ...Object.fromEntries(properties.map(property => [property.name, property.value]))
+      }))
+      : null;
+    const enemyPlacements = tiledEnemies?.length ? tiledEnemies : config.enemies;
+    if (enemyPlacements) {
+      enemyPlacements.forEach((pos, index) => {
         const customEnemy = this.textures.exists('enemy-guardians');
         const stoneGuardian = pos.kind === 'stone-guardian';
         const enemy = stoneGuardian
@@ -286,7 +304,8 @@ export class GameScene extends Phaser.Scene {
     // Camera setup with level sky color
     this.cameras.main.setBackgroundColor(config.skyColor || '#5c94fc');
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+    this.cameras.main.startFollow(this.player, false, 0.1,
+      this.currentLevel === 4 ? 0 : 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
     this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
     if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
@@ -295,12 +314,13 @@ export class GameScene extends Phaser.Scene {
     if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
     if (this.currentLevel === 3) {
       const zoom = this.cameras.main.zoom;
-      this.textures.get('angkor-sunset-level3').setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this.textures.get('angkor-sunset-level3').setFilter(Phaser.Textures.FilterMode.LINEAR);
       // Keep the full sunset composition visible as the level scrolls.
       this.add.image(400, 225, 'angkor-sunset-level3')
         .setDisplaySize(800 / zoom, 450 / zoom)
         .setScrollFactor(0).setDepth(-20);
     }
+    this.createAmbientMotes();
 
     // Controls
     if (this.input.keyboard) {
@@ -365,7 +385,7 @@ export class GameScene extends Phaser.Scene {
 
   replaceLevelOneDirectionSigns() {
     if (!this.textures.exists('khmer-guardian-waypoint')) return;
-    this.textures.get('khmer-guardian-waypoint').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this.textures.get('khmer-guardian-waypoint').setFilter(Phaser.Textures.FilterMode.LINEAR);
     const layer = this.groundLayer;
     const tileWidth = this.map.tileWidth;
     const tileHeight = this.map.tileHeight;
@@ -592,7 +612,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('khmer-coin')) {
       const coinTexture = this.textures.createCanvas('khmer-coin', 18 * 6, 18);
       const ctx = coinTexture.context;
-      ctx.imageSmoothingEnabled = false;
+      ctx.imageSmoothingEnabled = true;
       const widths = [3, 5, 7, 9, 7, 5];
       widths.forEach((radius, frame) => {
         const x = frame * 18, cx = x + 9, cy = 9;
@@ -618,7 +638,7 @@ export class GameScene extends Phaser.Scene {
         coinTexture.add(frame, 0, x, 0, 18, 18);
       });
       coinTexture.refresh();
-      coinTexture.setFilter(Phaser.Textures.FilterMode.NEAREST);
+      coinTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
     }
     for (let variant = 0; variant < 3; variant++) {
       const start = variant * 6;
@@ -694,6 +714,18 @@ export class GameScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom;
     this.hudContainer = this.add.container(400 - 400 / zoom, 225 - 225 / zoom)
       .setScale(1 / zoom).setScrollFactor(0).setDepth(200).setAlpha(0);
+    const rail = this.add.graphics();
+    rail.fillStyle(0x071719, 0.52).fillRoundedRect(9, 4, 784, 47, 13);
+    rail.fillStyle(0x142a2b, 0.94).fillRoundedRect(7, 0, 784, 47, 12);
+    rail.lineStyle(1.5, 0xd0a45f, 0.9).strokeRoundedRect(7.75, 0.75, 782.5, 45.5, 11);
+    rail.lineStyle(1, 0x78938a, 0.48).strokeRoundedRect(12, 4, 774, 37, 8);
+    rail.fillStyle(0xd5a85d, 0.78).fillRoundedRect(13, 7, 213, 32, 7);
+    rail.fillStyle(0x183334, 0.96).fillRoundedRect(15, 9, 209, 28, 6);
+    for (const x of [238, 353, 548, 650, 741]) {
+      rail.lineStyle(1, 0xc9ad78, 0.4).lineBetween(x, 10, x, 37);
+      rail.fillStyle(0xe6c47e, 0.75).fillCircle(x, 23.5, 1.5);
+    }
+    this.hudContainer.add(rail);
     const textStyle = { fontFamily: 'Trebuchet MS, Arial, sans-serif', fontStyle: 'bold',
       stroke: '#101711', strokeThickness: 6 };
     const hudText = (x, y, value, size, color) => this.add.text(x, y, value, {
@@ -717,8 +749,9 @@ export class GameScene extends Phaser.Scene {
     this.hudContainer.add([this.lifeHearts, this.levelText, this.scoreText, this.arrowText,
       this.coinIcon, this.coinsText]);
     this.drawLifeHearts();
-    this.extraLivesText = hudText(88, 23, '', 11, '#f4f1df');
-    this.hudContainer.add(this.extraLivesText);
+    this.characterNameText = hudText(91, 23, PLAYER_CHARACTER_NAME.toUpperCase(), 10, '#ffd078');
+    this.extraLivesText = hudText(151, 23, '', 11, '#f4f1df');
+    this.hudContainer.add([this.characterNameText, this.extraLivesText]);
     const pauseIcon = this.add.container(770, 28);
     const pausePlate = this.add.graphics();
     pausePlate.fillStyle(0x20364e, 0.94).fillRoundedRect(-20, -20, 40, 40, 8);
@@ -979,6 +1012,49 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  createAmbientMotes() {
+    const zoom = this.cameras.main.zoom;
+    for (let i = 0; i < 13; i++) {
+      const screenX = 28 + (i * 137) % 744;
+      const screenY = 45 + (i * 83) % 350;
+      const x = 400 + (screenX - 400) / zoom;
+      const y = 225 + (screenY - 225) / zoom;
+      const drift = 8 + (i % 4) * 3;
+      const glow = this.add.circle(x, y, 3.4, i % 3 === 0 ? 0xffd879 : 0x9fe8c3, 0.08)
+        .setScrollFactor(0).setScale(1 / zoom).setDepth(-7).setBlendMode(Phaser.BlendModes.ADD);
+      const mote = this.add.circle(x, y, i % 4 === 0 ? 1.5 : 1, i % 3 === 0 ? 0xffe7a0 : 0xc8ffdc, 0.55)
+        .setScrollFactor(0).setScale(1 / zoom).setDepth(-6).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: [glow, mote],
+        x: x + (i % 2 ? drift : -drift) / zoom,
+        y: y - (9 + i % 5 * 2) / zoom,
+        alpha: 0.12,
+        duration: 2100 + i % 5 * 430,
+        delay: i * 115,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
+  createRunGlint(direction) {
+    const player = this.player;
+    const glint = this.add.star(player.x - direction * 4, player.body.bottom - 2,
+      4, 1.2, 2.6, 0xffe6a0, 0.72).setDepth(12);
+    this.tweens.add({
+      targets: glint,
+      x: glint.x - direction * Phaser.Math.Between(7, 12),
+      y: glint.y - Phaser.Math.Between(3, 7),
+      alpha: 0,
+      scale: 0.25,
+      angle: Phaser.Math.Between(-45, 45),
+      duration: 250,
+      ease: 'Sine.easeOut',
+      onComplete: () => glint.destroy()
+    });
+  }
+
   awardComboPoints(basePoints, x, y) {
     const now = this.time.now;
     this.comboCount = now <= this.comboExpiresAt ? this.comboCount + 1 : 1;
@@ -1210,8 +1286,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  update() {
+  update(time, delta) {
     if (!this.player) return;
+
+    const frameDelta = Math.min(50, Math.max(1, Number(delta) || 16.67));
+    const followLerp = 1 - Math.exp(-6.32 * frameDelta / 1000);
+    this.cameras.main.setLerp(followLerp,
+      this.currentLevel === 4 ? 0 : followLerp);
 
     if (this.comboCount && this.time.now > this.comboExpiresAt) {
       this.comboCount = 0;
@@ -1264,7 +1345,9 @@ export class GameScene extends Phaser.Scene {
         this.player.play('player-idle', true);
       }
     }
-    this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, 0.32));
+    const movementRate = targetVelocityX === 0 ? 18 : 24;
+    const movementBlend = 1 - Math.exp(-movementRate * frameDelta / 1000);
+    this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, movementBlend));
 
     if (jump && this.player.body.blocked.down) {
       this.player.setVelocityY(-350);
@@ -1279,6 +1362,10 @@ export class GameScene extends Phaser.Scene {
     const grounded = this.player.body.blocked.down;
     if (this.wasPlayerAirborne && grounded) this.createLandingPuff();
     this.wasPlayerAirborne = !grounded;
+    if (grounded && targetVelocityX !== 0 && this.time.now >= (this.nextRunGlintAt || 0)) {
+      this.nextRunGlintAt = this.time.now + 135;
+      this.createRunGlint(Math.sign(targetVelocityX));
+    }
 
     updateBowPose(this);
 

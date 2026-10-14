@@ -31,7 +31,7 @@ export function prepareEnvironment(scene) {
   const original = scene.textures.get('tiles').getSourceImage();
   const terrain = scene.textures.createCanvas('environment-tiles', original.width, original.height);
   terrain.context.drawImage(original, 0, 0);
-  terrain.context.imageSmoothingEnabled = false;
+  terrain.context.imageSmoothingEnabled = true;
   const replace = (id, x, y, w, h) => {
     const dx = ((id - 1) % 20) * 18, dy = Math.floor((id - 1) / 20) * 18;
     terrain.context.clearRect(dx, dy, 18, 18);
@@ -45,7 +45,7 @@ export function prepareEnvironment(scene) {
 
 function createSugarPalm(scene) {
   if (scene.textures.exists('environment-palm')) {
-    scene.textures.get('environment-palm').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.textures.get('environment-palm').setFilter(Phaser.Textures.FilterMode.LINEAR);
     return;
   }
   const texture = scene.textures.createCanvas('environment-palm', 144, 220);

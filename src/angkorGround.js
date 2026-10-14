@@ -6,7 +6,7 @@ export function prepareAngkorGround(scene) {
   const artwork = scene.textures.get('temple-part-source').getSourceImage();
   const texture = scene.textures.createCanvas(key, source.width, source.height);
   const ctx = texture.context;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   ctx.drawImage(source, 0, 0);
 
   // These are complete illustrated blocks, not the arbitrary 32px TSX cells.
@@ -35,7 +35,7 @@ export function prepareAngkorGround(scene) {
   for (const [name, crop] of [['temple-used-block', 'stone'], ['temple-coin-block', 'lotus']]) {
     if (scene.textures.exists(name)) continue;
     const block = scene.textures.createCanvas(name, 18, 18);
-    block.context.imageSmoothingEnabled = false;
+    block.context.imageSmoothingEnabled = true;
     block.context.drawImage(artwork, ...crops[crop], 0, 0, 18, 18);
     // Keep reward boxes legible against the detailed temple backdrop.
     if (name === 'temple-coin-block') {

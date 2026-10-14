@@ -1,6 +1,5 @@
 import { installFullscreen } from './fullscreen.js';
 import { IntroScene } from './scenes/IntroScene.js';
-import { LoginScene } from './scenes/LoginScene.js';
 import { MainMenuScene } from './scenes/MainMenuScene.js';
 import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
@@ -8,6 +7,10 @@ import { GameOverScene } from './scenes/GameOverScene.js';
 import { VictoryScene } from './scenes/VictoryScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
 import { installMobileControls } from './mobileControls.js';
+
+// Remove local credentials created by the retired sign-in flow.
+localStorage.removeItem('tos-travel-local-accounts');
+sessionStorage.removeItem('tos-travel-local-session');
 
 const config = {
   type: Phaser.AUTO,
@@ -26,11 +29,11 @@ const config = {
     }
   },
   render: {
-    pixelArt: true,
-    antialias: false
+    pixelArt: false,
+    antialias: true
   },
   dom: { createContainer: true },
-  scene: [IntroScene, LoginScene, MainMenuScene, LevelSelectScene, GameScene, GameOverScene, VictoryScene, PauseScene]
+  scene: [IntroScene, MainMenuScene, LevelSelectScene, GameScene, GameOverScene, VictoryScene, PauseScene]
 };
 
 export const game = new Phaser.Game(config);
