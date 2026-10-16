@@ -37,6 +37,9 @@ const config = {
 };
 
 export const game = new Phaser.Game(config);
+if (window.parent !== window && window.parent.location.pathname === '/scripts/trailer-studio.html') {
+  window.parent.__trailerGame = game;
+}
 installMobileControls(game);
 
 installFullscreen(game);

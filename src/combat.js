@@ -1,8 +1,5 @@
 import { touchControls } from './mobileControls.js';
 import { damageBoss, updateFinalBoss } from './finalBoss.js';
-import { addArrowAmmo, MAX_ARROW_AMMO } from './arrowRules.js';
-import { TOTAL_LEVELS } from './levels/provinceRoute.js';
-import { playSound } from './ui.js';
 import { audioSettings } from './audioSettings.js';
 
 // Synthesize short, original guardian cues through Phaser's Web Audio context.
@@ -41,12 +38,179 @@ function playGuardianSound(scene, kind) {
   oscillator.stop(now + sound.duration + 0.01);
 }
 
+function playSwordSound(scene, kind, weight = 0) {
+  if (!audioSettings.sound) return;
+  const manager = scene.sound;
+  const context = manager?.context;
+  if (!context?.createOscillator || !context?.createBuffer) return;
+  const destination = manager.masterVolumeNode || context.destination;
+  const now = context.currentTime;
+
+  if (kind === 'swing') {
+    const duration = 0.14 + weight * 0.015;
+    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    filter.type = 'bandpass';
+    filter.Q.value = 0.7;
+    filter.frequency.setValueAtTime(2400 + weight * 180, now);
+    filter.frequency.exponentialRampToValueAtTime(520, now + duration);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.12 + weight * 0.015, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(destination);
+    source.start(now);
+    source.stop(now + duration);
+    return;
+  }
+
+  const volume = weight > 0 ? 0.11 : 0.065;
+  const duration = weight > 0 ? 0.32 : 0.22;
+  const variation = 1 + (Math.random() - 0.5) * 0.06;
+  for (const [frequency, partialVolume] of [[210, 0.4], [487, 0.55], [793, 0.32], [1160, 0.16]]) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(frequency * variation * (1 + weight * 0.035), now);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * variation * 0.72, now + duration);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(volume * partialVolume, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    oscillator.connect(gain);
+    gain.connect(destination);
+    oscillator.start(now);
+    oscillator.stop(now + duration + 0.01);
+  }
+  const thud = context.createOscillator();
+  const thudGain = context.createGain();
+  thud.type = 'sine';
+  thud.frequency.setValueAtTime(weight > 0 ? 105 : 78, now);
+  thud.frequency.exponentialRampToValueAtTime(42, now + 0.12);
+  thudGain.gain.setValueAtTime(0.0001, now);
+  thudGain.gain.linearRampToValueAtTime(weight > 0 ? 0.16 : 0.09, now + 0.006);
+  thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+  thud.connect(thudGain);
+  thudGain.connect(destination);
+  thud.start(now);
+  thud.stop(now + 0.16);
+}
+
+function getEnemyHeadPoint(enemy) {
+  const height = enemy.displayHeight || enemy.height || 28;
+  const topFromAnchor = height * (enemy.originY ?? 0.5);
+  return { x: enemy.x, y: enemy.y - topFromAnchor + Math.min(height * 0.25, 8) };
+}
+
+function showEnemyBlood(scene, enemy, x, y) {
+  if (enemy.isBoss || enemy.enemyKind === 'stone-guardian') return;
+
+  const splash = scene.add.graphics().setPosition(x, y).setDepth(enemy.depth + 4);
+  splash.fillStyle(0x9f1728, 0.96);
+  splash.fillRect(-3, -2, 7, 5);
+  splash.fillRect(-7, -1, 3, 3);
+  splash.fillRect(4, -5, 3, 3);
+  splash.fillRect(1, 3, 3, 3);
+  splash.fillStyle(0xd33b43, 0.95).fillRect(-1, -1, 3, 3);
+  scene.tweens.add({
+    targets: splash, y: y - 7, scaleX: 1.25, scaleY: 1.25, alpha: 0,
+    duration: 300, ease: 'Cubic.easeOut', onComplete: () => splash.destroy()
+  });
+
+  for (const [dx, dy] of [[-8, -5], [7, -8], [3, 7]]) {
+    const drop = scene.add.rectangle(x, y, 3, 4, 0xb51f31)
+      .setDepth(enemy.depth + 4).setRotation(dx * 0.04);
+    scene.tweens.add({
+      targets: drop, x: x + dx, y: y + dy, alpha: 0,
+      duration: 240, ease: 'Cubic.easeOut', onComplete: () => drop.destroy()
+    });
+  }
+}
+
+export function damageEnemy(scene, enemy, finisher = false, swordStrike = false) {
+  const killingBlow = enemy.hitPoints <= 1;
+  const heavyImpact = finisher || (swordStrike && killingBlow);
+  if (swordStrike) playSwordSound(scene, 'impact', heavyImpact ? 1 : 0);
+  const head = getEnemyHeadPoint(enemy);
+  showEnemyBlood(scene, enemy, head.x, head.y);
+  const burst = scene.add.graphics().setPosition(head.x, head.y + 5).setDepth(enemy.depth + 3);
+  const burstColor = heavyImpact ? 0xffd36b : 0xffffff;
+  burst.lineStyle(heavyImpact ? 3 : 2, burstColor, 1);
+  for (let i = 0; i < 10; i++) {
+    const angle = i * Math.PI / 5;
+    burst.beginPath();
+    burst.moveTo(Math.cos(angle) * 4, Math.sin(angle) * 4);
+    burst.lineTo(Math.cos(angle) * (heavyImpact ? 24 : 17), Math.sin(angle) * (heavyImpact ? 24 : 17));
+    burst.strokePath();
+  }
+  burst.fillStyle(0xffffff, 1).fillCircle(0, 0, heavyImpact ? 6 : 4);
+  scene.tweens.add({ targets: burst, alpha: 0, scaleX: heavyImpact ? 2.2 : 1.8, scaleY: heavyImpact ? 2.2 : 1.8,
+    duration: heavyImpact ? 270 : 210, ease: 'Cubic.easeOut', onComplete: () => burst.destroy() });
+  scene.cameras.main.shake(heavyImpact ? 130 : 90, heavyImpact ? 0.014 : 0.007);
+  scene.hitStopUntil = Math.max(scene.hitStopUntil || 0, scene.time.now + 65);
+  scene.physics.world.timeScale = 0.08;
+  scene.time.delayedCall(65, () => {
+    if (scene.physics?.world && scene.hitStopUntil <= scene.time.now) scene.physics.world.timeScale = 1;
+  });
+  if (finisher) scene.showFloatingText(enemy.x, enemy.y - 35, 'FINISHER!', '#ffd36b');
+  if (enemy.hitPoints > 1) {
+    enemy.hitPoints--;
+    const now = scene.time.now;
+    enemy.stunnedUntil = now + (finisher ? 760 : 620);
+    enemy.stunTintUntil = enemy.stunnedUntil;
+    enemy.attackUntil = now;
+    enemy.nextAttack = Math.max(enemy.nextAttack || 0, now + 900);
+    const knockback = Math.sign(enemy.x - scene.player.x) || -enemy.patrolDirection || 1;
+    const shove = swordStrike ? (finisher ? 250 : 175) : 105;
+    enemy.setVelocity(knockback * shove, swordStrike ? (finisher ? -245 : -105) : -25);
+    enemy.anims?.pause();
+    enemy.setTint(0xffd36b);
+    scene.time.delayedCall(enemy.stunnedUntil - now, () => {
+      if (enemy.active && enemy.stunTintUntil <= scene.time.now) enemy.clearTint();
+    });
+    const stunMark = scene.add.text(head.x, head.y - 8, '✦', {
+      fontFamily: 'sans-serif', fontSize: '16px', color: '#fff0a0',
+      stroke: '#72451f', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(enemy.depth + 2);
+    scene.tweens.add({ targets: stunMark, y: stunMark.y - 10, angle: 100, alpha: 0,
+      duration: 420, ease: 'Cubic.easeOut', onComplete: () => stunMark.destroy() });
+    const hitsLeft = enemy.hitPoints;
+    scene.showFloatingText(head.x, head.y - 16, `${hitsLeft} HIT${hitsLeft === 1 ? '' : 'S'} LEFT`, '#ffe2a0');
+    return;
+  }
+  if (swordStrike) {
+    const knockback = Math.sign(enemy.x - scene.player.x) || -enemy.patrolDirection || 1;
+    enemy.disableBody(true, false);
+    enemy.setTint(heavyImpact ? 0xffd36b : 0xffffff);
+    scene.tweens.add({
+      targets: enemy,
+      x: enemy.x + knockback * (heavyImpact ? 42 : 26),
+      y: enemy.y - (heavyImpact ? 52 : 30),
+      angle: knockback * (heavyImpact ? 24 : 12),
+      alpha: 0,
+      duration: heavyImpact ? 430 : 340,
+      ease: 'Cubic.easeOut',
+      onComplete: () => enemy.destroy()
+    });
+  } else {
+    enemy.disableBody(true, true);
+    enemy.destroy();
+  }
+  scene.awardComboPoints(200, enemy.x, enemy.y - 12);
+  scene.updateHUD();
+}
+
 export function installCombat(scene) {
-  scene.arrows = Math.min(MAX_ARROW_AMMO,
-    Math.max(0, scene.currentLevel >= 4 ? (scene.arrows || 0) : 0));
-  scene.nextShot = 0;
   scene.nextMeleeAttack = 0;
-  scene.arrowProjectiles = scene.physics.add.group({ allowGravity: false });
+  scene.attackInputDown = false;
+  scene.meleeAttackQueued = false;
+  scene.swordComboStep = 0;
+  scene.swordComboExpiresAt = 0;
   scene.rockProjectiles = scene.physics.add.group();
   if (!scene.textures.exists('guardian-rock')) {
     const texture = scene.textures.createCanvas('guardian-rock', 10, 10);
@@ -59,100 +223,127 @@ export function installCombat(scene) {
   scene.physics.add.collider(scene.rockProjectiles, scene.groundLayer,
     rock => retireRock(scene, rock), projectileCanCollide);
   scene.physics.add.overlap(scene.player, scene.rockProjectiles, (player, rock) => {
-    if (!rock.active || scene.isLevelFinished) return;
+    if (!rock.active || rock.reflected || scene.isLevelFinished) return;
     scene.handlePlayerEnemyCollision(player, rock, true);
     retireRock(scene, rock);
   });
-  if (!scene.textures.exists('bow-arrow')) {
-    const texture = scene.textures.createCanvas('bow-arrow', 24, 8);
-    const ctx = texture.context;
-    ctx.fillStyle = '#b77d38'; ctx.fillRect(3, 3, 17, 2);
-    ctx.fillStyle = '#ffe5a3'; ctx.fillRect(0, 1, 5, 2); ctx.fillRect(0, 5, 5, 2);
-    ctx.fillStyle = '#c8e0dc'; ctx.fillRect(19, 2, 3, 4); ctx.fillRect(22, 3, 2, 2);
-    texture.refresh();
-  }
-  scene.physics.add.collider(scene.arrowProjectiles, scene.groundLayer,
-    arrow => retireRock(scene, arrow), projectileCanCollide);
-  scene.physics.add.overlap(scene.arrowProjectiles, scene.enemies, (arrow, enemy) => {
-    if (!arrow.active || !enemy.active || !enemy.body.enable || scene.isLevelFinished) return;
-    retireRock(scene, arrow);
-    if (enemy.isBoss) { damageBoss(scene, enemy); return; }
-    if (enemy.hitPoints > 1) {
-      enemy.hitPoints--;
-      enemy.setTint(0xffffff);
-      scene.time.delayedCall(110, () => { if (enemy.active) enemy.clearTint(); });
-      return;
-    }
-    enemy.disableBody(true, true);
-    scene.awardComboPoints(200, enemy.x, enemy.y - 12);
-    scene.updateHUD();
-    enemy.destroy();
-  });
-  scene.bow = scene.add.graphics().setDepth(12).setVisible(false);
+  scene.physics.add.overlap(scene.rockProjectiles, scene.enemies, (rock, enemy) => {
+    if (!rock.active || !rock.reflected || !enemy.active || !enemy.body?.enable || scene.isLevelFinished) return;
+    retireRock(scene, rock);
+    if (enemy.isBoss) damageBoss(scene, enemy);
+    else damageEnemy(scene, enemy);
+  }, projectileCanCollide);
   if (scene.input.keyboard) {
-    scene.shootKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     scene.meleeKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    const toggleBow = event => {
-      if (event.repeat || scene.currentLevel < 4 || scene.isLevelFinished || !scene.scene.isActive()) return;
-      scene.bow.setVisible(!scene.bow.visible);
-    };
-    scene.input.keyboard.on('keydown-B', toggleBow);
-    scene.events.once('shutdown', () => scene.input.keyboard.off('keydown-B', toggleBow));
-  }
-  if (scene.currentLevel >= 4) {
-    scene.arrowText = scene.screenText(18, 90, `ARROWS: ${scene.arrows}  |  E: ATTACK  |  F: SHOOT  |  B: BOW`, {
-      fontSize: '12px', fontStyle: 'bold', color: '#ffe1a3',
-      stroke: '#17271f', strokeThickness: 3
-    }).setDepth(210);
-    scene.showFloatingText(scene.player.x + 50, scene.player.y - 25, 'Hit ? boxes for arrows', '#ffe1a3');
   }
 }
 
 function meleeAttack(scene) {
-  if (!touchControls.attack && !scene.meleeKey?.isDown) return;
   const now = scene.time.now;
-  if (now < scene.nextMeleeAttack || scene.isLevelFinished || !scene.player.body?.enable) return;
-  scene.nextMeleeAttack = now + 520;
+  const attackDown = touchControls.attack || Boolean(scene.meleeKey?.isDown) ||
+    Boolean(scene.input.activePointer?.leftButtonDown());
+  const attackPressed = attackDown && !scene.attackInputDown;
+  scene.attackInputDown = attackDown;
+  if (attackPressed && !scene.meleeAttackQueued && !scene.isLevelFinished && scene.player.body?.enable) {
+    if (now > scene.swordComboExpiresAt) scene.swordComboStep = 0;
+    scene.queuedSwordComboStep = scene.swordComboStep;
+    scene.swordComboStep = (scene.swordComboStep + 1) % 4;
+    scene.meleeAttackQueued = true;
+  }
+  if (!scene.meleeAttackQueued || now < scene.nextMeleeAttack || scene.isLevelFinished || !scene.player.body?.enable) return;
+  scene.meleeAttackQueued = false;
+  scene.nextMeleeAttack = now + 340;
+  scene.swordComboExpiresAt = now + 760;
 
   const player = scene.player;
-  scene.meleeAnimationUntil = now + 260;
-  player.play('player-attack');
+  scene.meleeAnimationStartedAt = now;
+  scene.meleeAnimationUntil = now + 340;
+  const combo = scene.queuedSwordComboStep || 0;
+  scene.swordActionSprite.setPosition(player.x, player.y).setFlipX(player.flipX)
+    .setAlpha(0).setVisible(true).play(`player-sword-combo-${combo}`, true);
   const direction = player.flipX ? -1 : 1;
   const centerY = player.body.center.y;
   const reach = 48;
   const target = scene.enemies.getChildren()
-    .filter(enemy => enemy.active && enemy.body?.enable && !enemy.isBoss &&
+    .filter(enemy => enemy.active && enemy.body?.enable &&
       (enemy.x - player.x) * direction >= -2 &&
       (enemy.x - player.x) * direction <= reach &&
       Math.abs(enemy.body.center.y - centerY) < 34)
     .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
+  const rockTarget = scene.rockProjectiles.getChildren()
+    .filter(rock => rock.active && rock.body?.enable && !rock.reflected &&
+      (rock.x - player.x) * direction >= -4 &&
+      (rock.x - player.x) * direction <= 56 &&
+      Math.abs(rock.body.center.y - centerY) < 38)
+    .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
 
-  // A quick golden swipe makes the close-range punch readable at game scale.
-  const slash = scene.add.graphics().setDepth(13);
-  const x = player.x + direction * 16;
-  slash.lineStyle(4, 0xffc85a, 0.95).beginPath()
-    .moveTo(x, centerY - 12).lineTo(x + direction * 13, centerY)
-    .lineTo(x, centerY + 12).strokePath();
-  slash.lineStyle(2, 0xfff0b0, 1).beginPath()
-    .moveTo(x + direction * 2, centerY - 7).lineTo(x + direction * 9, centerY)
-    .lineTo(x + direction * 2, centerY + 7).strokePath();
-  scene.time.delayedCall(130, () => slash.destroy());
-  player.setTint(0xffdfa0);
-  scene.time.delayedCall(90, () => { if (player.active) player.clearTint(); });
-  playSound(scene, 'stomp', { volume: 0.35, rate: 1.35 });
-
-  if (!target) return;
-  if (target.hitPoints > 1) {
-    target.hitPoints--;
-    target.setTint(0xffffff);
-    scene.time.delayedCall(110, () => { if (target.active) target.clearTint(); });
-    scene.showFloatingText(target.x, target.y - 24, 'CRACK!', '#ffe2a0');
-    return;
+  // Give each technique a distinct slash trail.
+  const slash = scene.add.graphics().setPosition(player.x + direction * 5, centerY).setDepth(12);
+  const trailColor = combo === 3 ? 0xffcf67 : 0xf4fbff;
+  const drawArc = (width, alpha, start, end, radius = 34) => {
+    slash.lineStyle(width, trailColor, alpha).beginPath();
+    for (let i = 0; i <= 12; i++) {
+      const angle = start + i / 12 * (end - start);
+      const x = direction * Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      if (i === 0) slash.moveTo(x, y); else slash.lineTo(x, y);
+    }
+    slash.strokePath();
+  };
+  if (combo === 0) {
+    slash.lineStyle(8, trailColor, 0.9).beginPath()
+      .moveTo(-direction * 17, -24).lineTo(direction * 23, 17).strokePath();
+    drawArc(3, 1, -0.9, 0.55, 32);
+  } else if (combo === 1) {
+    drawArc(8, 0.9, -0.85, 0.65, 38);
+    drawArc(3, 1, -0.85, 0.65, 38);
+  } else if (combo === 2) {
+    slash.lineStyle(8, trailColor, 0.9).beginPath()
+      .moveTo(direction * 2, 0).lineTo(direction * 50, 0).strokePath();
+    slash.lineStyle(3, 0xc7efff, 1).beginPath()
+      .moveTo(direction * 7, -5).lineTo(direction * 43, -5).strokePath();
+  } else {
+    drawArc(9, 0.9, -0.1, 2.55, 42);
+    drawArc(3, 1, -0.1, 2.55, 42);
   }
-  target.disableBody(true, true);
-  scene.awardComboPoints(200, target.x, target.y - 12);
-  scene.updateHUD();
-  target.destroy();
+  scene.tweens.add({ targets: slash, alpha: 0, scaleX: 1.35, scaleY: 1.35,
+    duration: 190, ease: 'Cubic.easeOut', onComplete: () => slash.destroy() });
+  player.setTint(0xffefd0);
+  scene.time.delayedCall(120, () => { if (player.active) player.clearTint(); });
+  playSwordSound(scene, 'swing', combo);
+
+  if (!target && !rockTarget) return;
+  // Resolve contacts during the visible blade follow-through.
+  scene.time.delayedCall(130, () => {
+    if (scene.isLevelFinished) return;
+    if (rockTarget?.active && rockTarget.body?.enable && !rockTarget.reflected) {
+      reflectRock(scene, rockTarget);
+    }
+    if (target?.active && target.body?.enable) {
+      if (target.isBoss) {
+        playSwordSound(scene, 'impact', combo === 3 ? 1 : 0);
+        damageBoss(scene, target);
+      }
+      else damageEnemy(scene, target, combo === 3, true);
+    }
+  });
+}
+
+function reflectRock(scene, rock) {
+  const owner = rock.ownerEnemy;
+  const target = owner?.active && owner.body?.enable ? owner : scene.enemies.getChildren()
+    .filter(enemy => enemy.active && enemy.body?.enable)
+    .sort((a, b) => Math.abs(a.x - rock.x) - Math.abs(b.x - rock.x))[0];
+  if (!target) return;
+
+  rock.reflected = true;
+  rock.setTint(0x8ee6ff).setDepth(13);
+  rock.body.setAllowGravity(false);
+  const dx = target.body.center.x - rock.x;
+  const dy = target.body.center.y - rock.y;
+  rock.setVelocity(Math.sign(dx || 1) * 330, Phaser.Math.Clamp(dy * 1.4, -170, 170));
+  scene.showFloatingText(rock.x, rock.y - 12, 'RETURN!', '#9fe8ff');
+  playSwordSound(scene, 'impact', 0);
 }
 
 function patrolSurface(scene, column, row) {
@@ -188,7 +379,9 @@ export function setupEnemy(scene, enemy, index, variant = index % 3) {
   enemy.patrolOrigin = enemy.x;
   enemy.nextJump = scene.time.now + 1000 + Math.random() * 2000;
   enemy.airSpeed = 0;
-  if (enemy.enemyKind !== 'stone-guardian') {
+  if (enemy.enemyKind === 'stone-guardian') {
+    enemy.play('stone-guardian-idle');
+  } else {
     enemy.play(enemy.texture.key === 'enemy-guardians'
       ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk');
   }
@@ -238,7 +431,9 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
     enemy.nextFootstep = now + 430;
   }
   enemy.setFlipX(enemy.patrolDirection > 0);
-  if (enemy.enemyKind !== 'stone-guardian') {
+  if (enemy.enemyKind === 'stone-guardian') {
+    enemy.play(Math.abs(targetSpeed) > 20 ? 'stone-guardian-walk' : 'stone-guardian-idle', true);
+  } else {
     enemy.play(enemy.texture.key === 'enemy-guardians'
       ? `guardian-walk-${enemy.guardianVariant}` : 'enemy-walk', true);
   }
@@ -246,11 +441,13 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
 
 export function throwRock(scene, enemy) {
   // Variant 1 is the black guardian; the other guardians only move and jump.
-  if (enemy.guardianVariant !== 1 || scene.currentLevel < 3 || scene.isLevelFinished || !enemy.active || !enemy.body?.enable) return null;
+  if ((enemy.guardianVariant !== 1 && enemy.enemyKind !== 'stone-guardian') ||
+      scene.currentLevel < 3 || scene.isLevelFinished || !enemy.active || !enemy.body?.enable) return null;
   const dx = scene.player.body.center.x - enemy.body.center.x;
   const direction = dx >= 0 ? 1 : -1;
   const rock = scene.rockProjectiles.create(enemy.body.center.x + direction * 15,
     enemy.body.center.y - 7, 'guardian-rock').setDepth(11);
+  rock.ownerEnemy = enemy;
   const distance = scene.player.body.center.x - rock.x;
   const flightTime = Math.max(0.25, Math.min(1.1, Math.abs(distance) / 210));
   const gravity = scene.physics.world.gravity.y;
@@ -279,31 +476,6 @@ export function retireRock(scene, rock) {
   });
 }
 
-export function grantBoxArrows(scene, block) {
-  if (scene.currentLevel < 4 || block.arrowClaimed) return;
-  block.arrowClaimed = true;
-  const gained = addArrowAmmo(scene, 2);
-  scene.updateHUD();
-  scene.showFloatingText(block.tile.pixelX + 9, block.tile.pixelY - 25,
-    gained ? `+${gained} ARROWS` : 'QUIVER FULL', '#87d7ca');
-}
-
-export function shootBow(scene) {
-  if (scene.currentLevel < 4 || scene.isLevelFinished || scene.arrows <= 0 || scene.time.now < scene.nextShot) return false;
-  scene.nextShot = scene.time.now + 400;
-  scene.bowDrawUntil = scene.time.now + 180;
-  scene.arrows--;
-  const direction = scene.currentLevel === TOTAL_LEVELS && scene.boss?.active
-    ? (scene.boss.x < scene.player.x ? -1 : 1)
-    : (scene.player.flipX ? -1 : 1);
-  const arrow = scene.arrowProjectiles.create(scene.player.x + direction * 17, scene.player.body.center.y, 'bow-arrow');
-  arrow.setFlipX(direction < 0).setDepth(11).setVelocityX(direction * 340);
-  arrow.body.setSize(20, 4).setOffset(2, 2);
-  scene.time.delayedCall(1800, () => { if (arrow.active) arrow.destroy(); });
-  scene.updateHUD();
-  return true;
-}
-
 export function updateCombat(scene) {
   const now = scene.time.now;
   meleeAttack(scene);
@@ -311,6 +483,14 @@ export function updateCombat(scene) {
     if (!enemy.active || !enemy.body?.enable) return;
     if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }
     if (enemy.body.top > scene.map.heightInPixels + 36) { enemy.destroy(); return; }
+    if (now < (enemy.stunnedUntil || 0)) {
+      enemy.setVelocityX(0);
+      return;
+    }
+    if (enemy.stunnedUntil) {
+      enemy.stunnedUntil = 0;
+      enemy.anims?.resume();
+    }
     const dx = scene.player.x - enemy.x;
     const dy = Math.abs(scene.player.body.center.y - enemy.body.center.y);
     if (now < enemy.attackUntil) { enemy.setVelocityX(0); return; }
@@ -321,15 +501,31 @@ export function updateCombat(scene) {
         enemy.attackUntil = now + 720;
         enemy.nextAttack = now + 1900;
         playGuardianSound(scene, 'attack');
-        enemy.setTint(0xffc05e);
-        scene.time.delayedCall(200, () => {
-          if (enemy.active) enemy.clearTint();
-          if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished || !scene.player.body?.enable) return;
+        enemy.play('stone-guardian-slam', true);
+        scene.time.delayedCall(390, () => {
+          if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished ||
+              scene.time.now < (enemy.stunnedUntil || 0) || !scene.player.body?.enable) return;
           if (Math.abs(scene.player.x - enemy.x) < 58 &&
               Math.abs(scene.player.body.center.y - enemy.body.center.y) < 38) {
             playGuardianSound(scene, 'impact');
             scene.handlePlayerEnemyCollision(scene.player, enemy, true);
           }
+        });
+        return;
+      }
+      if (scene.currentLevel >= 3 && Math.abs(dx) >= 76 && Math.abs(dx) < 270 && dy < 130 &&
+          enemy.body.blocked.down && now >= enemy.nextAttack) {
+        enemy.setVelocityX(0);
+        enemy.setFlipX(dx > 0);
+        enemy.attackUntil = now + 760;
+        enemy.nextAttack = now + 2200;
+        enemy.play('stone-guardian-throw', true);
+        playGuardianSound(scene, 'attack');
+        scene.time.delayedCall(420, () => {
+          if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished ||
+              scene.time.now < (enemy.stunnedUntil || 0)) return;
+          const rock = throwRock(scene, enemy);
+          if (rock) playGuardianSound(scene, 'impact');
         });
         return;
       }
@@ -379,42 +575,4 @@ export function updateCombat(scene) {
     }
     roamEnemy(scene, enemy, now);
   });
-  if (scene.currentLevel < 4) return;
-  if (touchControls.shoot || scene.shootKey?.isDown) shootBow(scene);
-}
-
-export function updateBowPose(scene) {
-  if (scene.currentLevel < 4 || !scene.bow) return;
-  const now = scene.time.now;
-  const direction = scene.player.flipX ? -1 : 1;
-  // Grip sits at chest height; the bow is smaller than the character's full height.
-  const bounds = scene.player.getBounds();
-  const x = scene.player.x + direction * 6, y = bounds.top + bounds.height * 0.60;
-  const halfHeight = scene.player.displayHeight * 0.30;
-  const draw = now < (scene.bowDrawUntil || 0) ? -direction * 3 : 0;
-  const g = scene.bow;
-  g.clear();
-  if (!g.visible) return;
-  // Sleeves and hands belong to the held pose and mirror with the character.
-  const arm = (points, color, width) => {
-    g.lineStyle(width, color); g.beginPath();
-    points.forEach(([px, py], index) => index ? g.lineTo(px, py) : g.moveTo(px, py));
-    g.strokePath();
-  };
-  const shoulder = scene.player.x - direction;
-  arm([[shoulder, y - 2], [x - direction * 2, y], [x + direction * 3, y]], 0x583a2b, 4);
-  arm([[shoulder, y - 2], [x - direction * 2, y]], 0xf4deb2, 3);
-  arm([[x - direction * 2, y], [x + direction * 3, y]], 0xe3a879, 2);
-  g.lineStyle(1.5, 0xb77935);
-  g.beginPath(); g.moveTo(x, y - halfHeight); g.lineTo(x + direction * 2, y - halfHeight / 2);
-  g.lineTo(x + direction * 3, y); g.lineTo(x + direction * 2, y + halfHeight / 2);
-  g.lineTo(x, y + halfHeight); g.strokePath();
-  g.lineStyle(0.7, 0xffe0a0); g.beginPath(); g.moveTo(x, y - halfHeight);
-  g.lineTo(x + draw, y); g.lineTo(x, y + halfHeight); g.strokePath();
-  g.fillStyle(0xe8bb56); g.fillRect(x - 0.5, y - halfHeight - 1, 1.5, 2);
-  g.fillRect(x - 0.5, y + halfHeight - 1, 1.5, 2);
-  // The other hand pulls the string toward the chest during a shot.
-  arm([[shoulder - direction * 2, y + 1], [x + draw, y]], 0x583a2b, 3);
-  arm([[shoulder - direction * 2, y + 1], [x + draw, y]], 0xf4deb2, 2);
-  g.fillStyle(0xe3a879); g.fillRect(x + draw - 1, y - 1, 2, 2);
 }

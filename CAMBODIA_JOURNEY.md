@@ -2,7 +2,7 @@
 
 Levels 1-3 keep the introductory Angkor adventure. Levels 4-28 visit each of Cambodia's 24 provinces and Phnom Penh once, in a geographic game tour inspired by the supplied map. This is a game route rather than a road itinerary.
 
-Choose stages from the clickable map or the three pages of level cards. Every new stage has pixel scenery, province-specific terrain colors, platforms, arrow supply boxes, patrol enemies, and a Khmer house finish. Enemies throw rocks every three seconds from level 3; the Cambodian bow is available from level 4.
+Choose stages from the clickable map or the three pages of level cards. Every new stage has pixel scenery, province-specific terrain colors, platforms, patrol enemies, and a Khmer house finish. Enemies throw rocks from level 3; use the sword to defeat enemies and the final guardian.
 
 | Level | Province / capital | Landmarks |
 | --- | --- | --- |

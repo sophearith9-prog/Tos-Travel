@@ -1,6 +1,5 @@
 import { panel, label, button, playSound } from '../ui.js';
 import { audioSettings } from '../audioSettings.js';
-import { MAX_ARROW_AMMO } from '../arrowRules.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
@@ -13,7 +12,7 @@ import { addCambodiaJourney } from '../cambodiaJourney.js';
 import { addAngkorWatBackdrop } from '../angkorWatBackdrop.js';
 import { prepareAngkorGround } from '../angkorGround.js';
 import { touchControls } from '../mobileControls.js';
-import { installCombat, setupEnemy, updateCombat, updateBowPose, grantBoxArrows } from '../combat.js';
+import { installCombat, setupEnemy, updateCombat, damageEnemy } from '../combat.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
 import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles, addLevel4PainterlyPlatforms } from '../provinceScenery.js';
@@ -40,9 +39,6 @@ export class GameScene extends Phaser.Scene {
     this.isLevelFinished = false;
     this.isSlidingDownFlag = false;
     this.isEnteringCastle = false;
-    this.arrows = Math.min(MAX_ARROW_AMMO, Math.max(0, Number(data.arrows) || 0));
-    this.arrowText = null;
-    this.shootKey = null;
     this.sprintKey = null;
     this.templeEntrance = null;
   }
@@ -100,8 +96,15 @@ export class GameScene extends Phaser.Scene {
       this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
+    this.load.spritesheet('vireak-sword-actions', 'assets/vireak-sword-actions.png', {
+      frameWidth: 384,
+      frameHeight: 256
+    });
     this.load.image('enemy-source', 'assets/khmer-guardian-animations.png');
-    this.load.image('stone-guardian', 'assets/stone-guardian.png');
+    this.load.spritesheet('stone-guardian', 'assets/stone-guardian-actions.png', {
+      frameWidth: 384,
+      frameHeight: 256
+    });
     this.load.spritesheet('packed', 'assets/tilemap_packed.png', {
       frameWidth: 18,
       frameHeight: 18
@@ -204,6 +207,8 @@ export class GameScene extends Phaser.Scene {
     this.player = customPlayer
       ? this.physics.add.sprite(50, 150, 'player-character', 0)
       : this.physics.add.sprite(50, 150, 'packed', 24);
+    this.jumpsUsed = 0;
+    this.jumpInputDown = false;
     this.player.setCollideWorldBounds(true);
     this.player.setBounce(0);
     if (customPlayer) {
@@ -218,6 +223,8 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.player.body.setSize(14, 16).setOffset(2, 2);
     }
+    this.swordActionSprite = this.add.sprite(this.player.x, this.player.y, 'vireak-sword-actions', 0)
+      .setOrigin(0.5, 0.625).setScale(24 / 256).setDepth(this.player.depth + 1).setVisible(false);
     this.physics.add.collider(this.player, this.groundLayer, this.hitCoinBlock, null, this);
 
     // Spawn Coins from level config
@@ -252,20 +259,20 @@ export class GameScene extends Phaser.Scene {
         const customEnemy = this.textures.exists('enemy-guardians');
         const stoneGuardian = pos.kind === 'stone-guardian';
         const enemy = stoneGuardian
-          ? this.enemies.create(pos.x, pos.y, 'stone-guardian')
+          ? this.enemies.create(pos.x, pos.y, 'stone-guardian', 0)
           : customEnemy
           ? this.enemies.create(pos.x, pos.y, 'enemy-guardians', (index % 3) * 6)
           : this.enemies.create(pos.x, pos.y, 'packed', 22);
         enemy.setBounce(0);
         enemy.setCollideWorldBounds(true);
         enemy.setVelocityX(-this.enemySpeed);
+        enemy.hitPoints = 3;
         if (stoneGuardian) {
-          const scale = 58 / Math.max(enemy.width, enemy.height);
+          const scale = 58 / 256;
           enemy.setScale(scale).setOrigin(0.5, 1);
           enemy.body.setSize(24 / scale, 19 / scale)
             .setOffset((enemy.width - 24 / scale) / 2, enemy.height - 19 / scale);
           enemy.enemyKind = 'stone-guardian';
-          enemy.hitPoints = 2;
           enemy.setDepth(8);
         } else if (customEnemy) {
           const scale = 28 / 96;
@@ -654,13 +661,39 @@ export class GameScene extends Phaser.Scene {
     const customPlayer = this.textures.exists('player-character');
     const playerFrames = (frames, fallback) => this.anims.generateFrameNumbers(
       customPlayer ? 'player-character' : 'packed', { frames: customPlayer ? frames : fallback });
+    ['stone-guardian-idle', 'stone-guardian-walk', 'stone-guardian-slam', 'stone-guardian-throw']
+      .forEach(key => this.anims.remove(key));
+    for (const [key, start, end, frameRate, repeat] of [
+      ['stone-guardian-idle', 0, 3, 5, -1],
+      ['stone-guardian-walk', 4, 7, 7, -1],
+      ['stone-guardian-slam', 8, 11, 6, 0],
+      ['stone-guardian-throw', 12, 15, 6, 0]
+    ]) {
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers('stone-guardian', { start, end }),
+        frameRate,
+        repeat
+      });
+    }
     // Refresh these when restarting so a newly added image replaces the fallback.
-    ['player-walk', 'player-idle', 'player-jump'].forEach(key => this.anims.remove(key));
+    ['player-walk', 'player-run', 'player-idle', 'player-jump', 'player-crouch', 'player-land',
+      'player-attack', 'player-sword-attack',
+      ...Array.from({ length: 4 }, (_, index) => `player-sword-combo-${index}`)]
+      .forEach(key => this.anims.remove(key));
     if (!this.anims.exists('player-walk')) {
       this.anims.create({
         key: 'player-walk',
         frames: playerFrames([5, 6, 7, 8, 9], [24, 25]),
         frameRate: 12,
+        repeat: -1
+      });
+    }
+    if (!this.anims.exists('player-run')) {
+      this.anims.create({
+        key: 'player-run',
+        frames: playerFrames([10, 11, 12, 13, 14], [24, 25]),
+        frameRate: 16,
         repeat: -1
       });
     }
@@ -679,11 +712,21 @@ export class GameScene extends Phaser.Scene {
         frameRate: 1
       });
     }
-    if (!this.anims.exists('player-attack')) {
+    if (!this.anims.exists('player-crouch')) {
+      this.anims.create({ key: 'player-crouch', frames: playerFrames([19], [24]), frameRate: 1 });
+    }
+    if (!this.anims.exists('player-land')) {
       this.anims.create({
-        key: 'player-attack',
-        frames: playerFrames([16, 17, 18], [25, 24, 25]),
-        frameRate: 14,
+        key: 'player-land', frames: playerFrames([18, 19], [25, 24]), frameRate: 10, repeat: 0
+      });
+    }
+    for (let combo = 0; combo < 4; combo++) {
+      this.anims.create({
+        key: `player-sword-combo-${combo}`,
+        frames: this.anims.generateFrameNumbers('vireak-sword-actions', {
+          start: combo * 4, end: combo * 4 + 3
+        }),
+        frameRate: 12,
         repeat: 0
       });
     }
@@ -714,18 +757,6 @@ export class GameScene extends Phaser.Scene {
     const zoom = this.cameras.main.zoom;
     this.hudContainer = this.add.container(400 - 400 / zoom, 225 - 225 / zoom)
       .setScale(1 / zoom).setScrollFactor(0).setDepth(200).setAlpha(0);
-    const rail = this.add.graphics();
-    rail.fillStyle(0x071719, 0.52).fillRoundedRect(9, 4, 784, 47, 13);
-    rail.fillStyle(0x142a2b, 0.94).fillRoundedRect(7, 0, 784, 47, 12);
-    rail.lineStyle(1.5, 0xd0a45f, 0.9).strokeRoundedRect(7.75, 0.75, 782.5, 45.5, 11);
-    rail.lineStyle(1, 0x78938a, 0.48).strokeRoundedRect(12, 4, 774, 37, 8);
-    rail.fillStyle(0xd5a85d, 0.78).fillRoundedRect(13, 7, 213, 32, 7);
-    rail.fillStyle(0x183334, 0.96).fillRoundedRect(15, 9, 209, 28, 6);
-    for (const x of [238, 353, 548, 650, 741]) {
-      rail.lineStyle(1, 0xc9ad78, 0.4).lineBetween(x, 10, x, 37);
-      rail.fillStyle(0xe6c47e, 0.75).fillCircle(x, 23.5, 1.5);
-    }
-    this.hudContainer.add(rail);
     const textStyle = { fontFamily: 'Trebuchet MS, Arial, sans-serif', fontStyle: 'bold',
       stroke: '#101711', strokeThickness: 6 };
     const hudText = (x, y, value, size, color) => this.add.text(x, y, value, {
@@ -743,10 +774,9 @@ export class GameScene extends Phaser.Scene {
     });
     this.levelText = hudText(268, 23, `STAGE ${this.currentLevel}/${TOTAL_LEVELS}`, 13, '#f4f1df');
     this.scoreText = hudText(370, 23, String(this.score).padStart(5, '0'), 13, '#f4f1df');
-    this.arrowText = hudText(570, 23, `➤ ${this.arrows}`, 14, '#f4f1df');
     this.coinsText = hudText(676, 23, String(this.coins).padStart(2, '0'), 15, '#fff4dc');
     this.coinIcon = this.add.image(658, 23, 'khmer-coin', 2).setDisplaySize(19, 19);
-    this.hudContainer.add([this.lifeHearts, this.levelText, this.scoreText, this.arrowText,
+    this.hudContainer.add([this.lifeHearts, this.levelText, this.scoreText,
       this.coinIcon, this.coinsText]);
     this.drawLifeHearts();
     this.characterNameText = hudText(91, 23, PLAYER_CHARACTER_NAME.toUpperCase(), 10, '#ffd078');
@@ -786,30 +816,6 @@ export class GameScene extends Phaser.Scene {
 
   prepareCoinBlocks(coins) {
     this.coinBlocks = new Map();
-    if (this.currentLevel >= 4) {
-      if (!this.textures.exists('bow-supply-box')) {
-        const texture = this.textures.createCanvas('bow-supply-box', 18, 18);
-        const ctx = texture.context;
-        ctx.fillStyle = '#503416'; ctx.fillRect(0, 0, 18, 18);
-        ctx.fillStyle = '#eab74f'; ctx.fillRect(1, 1, 16, 16);
-        ctx.fillStyle = '#ffe6a0'; ctx.fillRect(2, 2, 14, 2);
-        ctx.fillStyle = '#ac732f'; ctx.fillRect(2, 14, 14, 2);
-        ctx.fillStyle = '#503416';
-        ['111', '001', '011', '010', '000', '010'].forEach((row, y) =>
-          [...row].forEach((pixel, x) => { if (pixel === '1') ctx.fillRect(6 + x * 2, 3 + y * 2, 2, 2); }));
-        texture.refresh();
-      }
-      for (const target of [8, Math.floor(this.map.width * 0.3), Math.floor(this.map.width * 0.5), Math.floor(this.map.width * 0.68)]) {
-        const columns = Array.from({ length: 13 }, (_, i) => target + i - 6)
-          .filter(x => x >= 4 && x < this.map.width - 25)
-          .sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
-        const x = columns.find(col => this.groundLayer.hasTileAt(col, 11) &&
-          [8, 9, 10].every(row => !this.groundLayer.hasTileAt(col, row)));
-        if (x !== undefined) {
-          this.groundLayer.putTileAt(48, x, 8).setCollision(true, true, true, true);
-        }
-      }
-    }
     this.groundLayer.forEachTile(tile => {
       if (tile.index === 48 && tile.x < this.map.width - 25) {
         this.coinBlocks.set(tile.y * this.map.width + tile.x, {
@@ -848,16 +854,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (candidates.length) candidates[0].extraLife = true;
-    if (this.currentLevel >= 4) {
-      const supplyCandidates = [...this.coinBlocks.values()]
-        .filter(block => !block.extraLife)
-        .sort((a, b) => a.tile.x - b.tile.x);
-      const supplyCount = Math.min(2, supplyCandidates.length);
-      for (let i = 0; i < supplyCount; i++) {
-        const index = Math.floor((i + 0.5) * supplyCandidates.length / supplyCount);
-        supplyCandidates[index].arrowReward = true;
-      }
-    }
     const loose = [];
     for (const coin of coins) {
       let nearest = null, distance = 54 * 54 + 1;
@@ -882,10 +878,9 @@ export class GameScene extends Phaser.Scene {
     }
     for (const block of this.coinBlocks.values()) {
       block.tile.alpha = 0;
-      const key = block.arrowReward ? 'bow-supply-box'
-        : this.currentLevel === 1 || this.currentLevel === 2 || this.currentLevel === 3
+      const key = this.currentLevel === 1 || this.currentLevel === 2 || this.currentLevel === 3
         ? (block.coins || block.extraLife ? 'temple-coin-block' : 'temple-used-block')
-        : (block.coins || block.extraLife || block.arrowReward) && this.textures.exists('environment-block')
+        : (block.coins || block.extraLife) && this.textures.exists('environment-block')
         ? 'environment-block' : 'used-coin-block';
       block.image = this.add.image(block.tile.pixelX + 9, block.tile.pixelY + 9, key)
         .setDisplaySize(18, 18).setDepth(-1);
@@ -897,14 +892,8 @@ export class GameScene extends Phaser.Scene {
     if (this.isLevelFinished || !player.body.blocked.up) return;
     if (Math.abs(player.body.top - (tile.pixelY + tile.height)) > 2) return;
     const block = this.coinBlocks?.get(tile.y * this.map.width + tile.x);
-    if (!block || (!block.coins && !block.extraLife && (!block.arrowReward || block.arrowClaimed)) || this.time.now < block.nextHit) return;
+    if (!block || (!block.coins && !block.extraLife) || this.time.now < block.nextHit) return;
     block.nextHit = this.time.now + 250;
-    grantBoxArrows(this, block);
-    if (!block.coins && !block.extraLife) {
-      block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block');
-      this.tweens.add({ targets: block.image, y: tile.pixelY + 5, duration: 90, yoyo: true });
-      return;
-    }
     if (block.extraLife) {
       block.extraLife = false;
       if (!block.coins) block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
@@ -1097,7 +1086,6 @@ export class GameScene extends Phaser.Scene {
     this.scoreText.setText(String(this.score).padStart(5, '0'));
     this.coinsText.setText(String(this.coins).padStart(2, '0'));
     this.drawLifeHearts();
-    this.arrowText?.setText(`➤ ${this.arrows}`);
   }
 
   handlePlayerEnemyCollision(player, enemy, forceDamage = false) {
@@ -1109,15 +1097,9 @@ export class GameScene extends Phaser.Scene {
     if (!forceDamage && isFalling && isAbove) {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
-      // The final guardian requires arrow hits; stomping only bounces the player.
+      // The guardian can be damaged with the sword; stomping only bounces the player.
       if (enemy.isBoss || enemy.enemyKind === 'stone-guardian') return;
-      this.awardComboPoints(200, enemy.x, enemy.y - 8);
-      this.updateHUD();
-
-      enemy.disableBody(true, false);
-      enemy.setAlpha(0.6);
-      enemy.setScale(enemy.scaleX, enemy.scaleY * 0.4);
-      this.time.delayedCall(200, () => enemy.destroy());
+      damageEnemy(this, enemy);
     } else {
       if (this.isInvulnerable) return;
 
@@ -1181,8 +1163,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.isLevelFinished = true;
-    this.bow?.setVisible(false);
-    this.arrowProjectiles?.clear(true, true);
     this.rockProjectiles?.clear(true, true);
     if (this.finishFlag) {
       this.finishFlag.setVisible(true);
@@ -1320,28 +1300,43 @@ export class GameScene extends Phaser.Scene {
     // Player Movement controls
     const left = touchControls.left || (this.cursors && (this.cursors.left.isDown || (this.wasd && this.wasd.left.isDown)));
     const right = touchControls.right || (this.cursors && (this.cursors.right.isDown || (this.wasd && this.wasd.right.isDown)));
+    const down = this.cursors && (this.cursors.down.isDown || (this.wasd && this.wasd.down.isDown));
     const jump = touchControls.jump || (this.cursors && (this.cursors.up.isDown || (this.wasd && (this.wasd.up.isDown || this.wasd.space.isDown))));
-    const moveSpeed = this.currentLevel === TOTAL_LEVELS && this.sprintKey?.isDown ? 230 : 150;
+    const jumpPressed = Boolean(jump && !this.jumpInputDown);
+    this.jumpInputDown = Boolean(jump);
+    const sprinting = Boolean(this.sprintKey?.isDown);
+    const moveSpeed = sprinting ? (this.currentLevel === TOTAL_LEVELS ? 230 : 200) : 150;
     const attacking = this.time.now < (this.meleeAnimationUntil || 0);
+    const actionLocked = attacking;
+    const grounded = this.player.body.blocked.down;
+    const landed = this.wasPlayerAirborne && grounded;
+    if (grounded) this.jumpsUsed = 0;
+    if (landed) {
+      this.landingAnimationUntil = this.time.now + 150;
+      this.player.play('player-land', true);
+    }
 
     let targetVelocityX = 0;
     if (attacking) {
-      if (this.player.anims.currentAnim?.key !== 'player-attack') this.player.play('player-attack');
+      targetVelocityX = 0;
     }
-    if (left) {
+    if (grounded && down && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
+      this.player.setVelocityX(0);
+      this.player.play('player-crouch', true);
+    } else if (left) {
       targetVelocityX = -moveSpeed;
       this.player.setFlipX(true);
-      if (this.player.body.blocked.down && !attacking) {
-        this.player.play('player-walk', true);
+      if (grounded && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
+        this.player.play(sprinting ? 'player-run' : 'player-walk', true);
       }
     } else if (right) {
       targetVelocityX = moveSpeed;
       this.player.setFlipX(false);
-      if (this.player.body.blocked.down && !attacking) {
-        this.player.play('player-walk', true);
+      if (grounded && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
+        this.player.play(sprinting ? 'player-run' : 'player-walk', true);
       }
     } else {
-      if (this.player.body.blocked.down && !attacking) {
+      if (grounded && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
         this.player.play('player-idle', true);
       }
     }
@@ -1349,25 +1344,41 @@ export class GameScene extends Phaser.Scene {
     const movementBlend = 1 - Math.exp(-movementRate * frameDelta / 1000);
     this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, movementBlend));
 
-    if (jump && this.player.body.blocked.down) {
-      this.player.setVelocityY(-350);
-      if (!attacking) this.player.play('player-jump', true);
-      playSound(this, 'jump', { volume: 0.4 });
+    if (jumpPressed && this.jumpsUsed < 2) {
+      const doubleJump = this.jumpsUsed === 1 && !grounded;
+      this.jumpsUsed++;
+      this.player.setVelocityY(doubleJump ? -320 : -350);
+      if (doubleJump) this.createLandingPuff();
+      if (!actionLocked) this.player.play('player-jump', true);
+      playSound(this, 'jump', { volume: doubleJump ? 0.48 : 0.4, rate: doubleJump ? 1.25 : 1 });
     }
 
     if (!this.player.body.blocked.down) {
-      if (!attacking) this.player.play('player-jump', true);
+      if (!actionLocked) this.player.play('player-jump', true);
     }
 
-    const grounded = this.player.body.blocked.down;
-    if (this.wasPlayerAirborne && grounded) this.createLandingPuff();
+    if (landed) this.createLandingPuff();
     this.wasPlayerAirborne = !grounded;
     if (grounded && targetVelocityX !== 0 && this.time.now >= (this.nextRunGlintAt || 0)) {
       this.nextRunGlintAt = this.time.now + 135;
       this.createRunGlint(Math.sign(targetVelocityX));
     }
 
-    updateBowPose(this);
+    const swordActionActive = this.time.now < (this.meleeAnimationUntil || 0);
+    if (swordActionActive) {
+      const progress = Phaser.Math.Clamp(
+        (this.time.now - this.meleeAnimationStartedAt) /
+          (this.meleeAnimationUntil - this.meleeAnimationStartedAt),
+        0, 1
+      );
+      const blend = Phaser.Math.Clamp(Math.min(progress / 0.14, (1 - progress) / 0.18), 0, 1);
+      this.swordActionSprite.setPosition(this.player.x, this.player.y)
+        .setFlipX(this.player.flipX).setAlpha(blend).setVisible(true);
+      this.player.setVisible(true).setAlpha(1 - blend);
+    } else {
+      this.swordActionSprite.setVisible(false).setAlpha(1);
+      this.player.setVisible(true).setAlpha(1);
+    }
 
     // Pit fall detection
     if (this.player.y > 280) {

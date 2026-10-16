@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tos Travel — Trailer Render</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b12}
+    body{display:grid;place-items:center;font:16px system-ui;color:#fff}
+    canvas{width:min(100vw,177.78vh);height:min(56.25vw,100vh);background:#10151d;image-rendering:auto}
+    iframe{position:fixed;left:-10000px;top:0;width:800px;height:450px;border:0}
+    #status{position:fixed;left:18px;bottom:16px;color:#ffe6af;background:#10151dcc;padding:8px 12px;border-radius:6px;font-size:12px}
+  </style>
+</head>
+<body>
+  <canvas id="frame" width="1280" height="720"></canvas>
+  <iframe id="game" src="/index.html" allow="autoplay"></iframe>
+  <div id="status">Preparing trailer…</div>
+  <script>
+  (async () => {
+    const canvas = document.querySelector('#frame');
+    const ctx = canvas.getContext('2d');
+    const frame = document.querySelector('#game');
+    const status = document.querySelector('#status');
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const image = path => { const img = new Image(); img.src = path; return img; };
+    const logo = image('/assets/game-logo.png');
+    const cover = image('/assets/banteay-chhmar-level1-panorama.png');
+    const titleBg = image('/assets/title-temple-sunset.png');
+    const scenes = [
+      { name: 'LEVEL 1', line: 'A JOURNEY THROUGH CAMBODIA', color: '#f3c46c' },
+      { name: 'LEVEL 4', line: 'WIELD THE KHMER SWORD', color: '#ffdf91' },
+      { name: 'FINAL GUARDIAN', line: 'FACE THE STONE GIANT', color: '#94d9e5' }
+    ];
+    let game, scene, startedAt = 0, chapter = -1, raf, recorder, recorded = [];
+
+    const sceneWait = async () => {
+      for (let i=0; i<160; i++) {
+        scene = game.scene.getScene('GameScene');
+        if (scene?.scene?.isActive() && scene.player?.body && scene.enemies) {
+          await wait(950);
+          return scene;
+        }
+        await wait(100);
+      }
+      throw new Error('Game scene did not finish loading');
+    };
+    const startStage = async level => {
+      status.textContent = `Loading stage ${level}…`;
+      game.scene.start('GameScene', { level, score: 0, coins: 0, lives: 3 });
+      await sceneWait();
+      status.textContent = 'Recording gameplay…';
+      return scene;
+    };
+    const key = (name, down) => {
+      const target = scene?.wasd?.[name] || scene?.cursors?.[name];
+      if (target) target.isDown = down;
+    };
+    const releaseKeys = () => {
+      for (const name of ['left','right','up','down','space']) key(name, false);
+      if (scene?.meleeKey) scene.meleeKey.isDown = false;
+    };
+    const swordTap = async () => {
+      if (!scene?.meleeKey) return;
+      scene.meleeKey.isDown = true;
+      await wait(75);
+      scene.meleeKey.isDown = false;
+      await wait(440);
+    };
+    const stageShot = async (level, bossFight=false) => {
+      await startStage(level);
+      releaseKeys();
+      const p = scene.player;
+      const target = bossFight ? scene.boss : scene.enemies.getChildren().find(e => e.active && e.body?.enable && !e.isBoss);
+      if (target) {
+        p.setPosition(target.x - (bossFight ? 58 : 42), target.y);
+        p.body.reset(p.x, p.y);
+        p.setVelocity(0, 0).setFlipX(false);
+        target.setVelocityX(0);
+      }
+      return scene;
+    };
+
+    if (frame.contentDocument.readyState !== 'complete') {
+      await new Promise((resolve, reject) => {
+        frame.addEventListener('load', resolve, { once:true });
+        frame.addEventListener('error', reject, { once:true });
+      });
+    }
+    for (let i=0; i<160 && !frame.contentWindow.__trailerGame; i++) await wait(100);
+    game = frame.contentWindow.__trailerGame;
+    if (!game) throw new Error('Game runtime is unavailable');
+    await startStage(1);
+
+    const stream = canvas.captureStream(30);
+    try {
+      const audio = game.sound.context;
+      await audio.resume();
+      const audioOut = audio.createMediaStreamDestination();
+      game.sound.masterVolumeNode.connect(audioOut);
+      audioOut.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+    } catch (error) { console.warn('Trailer will use game audio only if available', error); }
+
+    const mimeType = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm']
+      .find(type => MediaRecorder.isTypeSupported(type));
+    recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000, audioBitsPerSecond: 192000 });
+    recorder.ondataavailable = event => { if (event.data?.size) recorded.push(event.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(recorded, { type: mimeType });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'Tos-Travel-Game-Trailer.webm';
+      link.click();
+      status.textContent = `Saved trailer (${(blob.size / 1048576).toFixed(1)} MB)`;
+      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+    };
+    recorder.start(1000);
+    startedAt = performance.now();
+
+    const drawCover = elapsed => {
+      const bg = titleBg.complete && titleBg.naturalWidth ? titleBg : cover;
+      if (bg.complete && bg.naturalWidth) {
+        const scale = Math.max(1280 / bg.width, 720 / bg.height);
+        const w = bg.width * scale, h = bg.height * scale;
+        ctx.drawImage(bg, (1280-w)/2, (720-h)/2, w, h);
+      } else { ctx.fillStyle='#273549'; ctx.fillRect(0,0,1280,720); }
+      ctx.fillStyle='rgba(7,10,17,.4)';ctx.fillRect(0,0,1280,720);
+      const light=ctx.createRadialGradient(640,330,80,640,330,620);
+      light.addColorStop(0,'rgba(255,188,83,.16)');light.addColorStop(1,'rgba(0,0,0,.3)');
+      ctx.fillStyle=light;ctx.fillRect(0,0,1280,720);
+      if (logo.complete && logo.naturalWidth) ctx.drawImage(logo,330,115,620,215);
+      ctx.textAlign='center';ctx.font='700 22px Georgia,serif';ctx.fillStyle='#fff0c9';
+      ctx.fillText('A KHMER ADVENTURE',640,420);
+      ctx.font='600 14px system-ui,sans-serif';ctx.fillStyle='#f4cf82';ctx.letterSpacing='5px';
+      ctx.fillText('TEMPLES  •  JUNGLES  •  LEGENDS',640,460);ctx.letterSpacing='0px';
+      ctx.fillStyle=`rgba(245,203,131,${0.45+0.35*Math.sin(elapsed*4)})`;
+      ctx.fillRect(565,505,150,2);
+    };
+    const drawGameplay = elapsed => {
+      const source = frame.contentDocument.querySelector('#game-container canvas');
+      if (source) ctx.drawImage(source,0,0,1280,720);
+      ctx.fillStyle='rgba(4,8,13,.52)';ctx.fillRect(0,0,1280,75);
+      ctx.fillStyle='rgba(4,8,13,.68)';ctx.fillRect(0,614,1280,106);
+      ctx.fillStyle='#efc46f';ctx.fillRect(74,646,4,36);
+      const item=scenes[Math.max(0,Math.min(chapter,2))];
+      ctx.textAlign='left';ctx.font='700 13px system-ui,sans-serif';ctx.fillStyle=item.color;
+      ctx.letterSpacing='3px';ctx.fillText(item.name,96,652);ctx.letterSpacing='0px';
+      ctx.font='700 28px Georgia,serif';ctx.fillStyle='#fff2d6';ctx.fillText(item.line,96,684);
+      ctx.textAlign='right';ctx.font='700 12px system-ui,sans-serif';ctx.fillStyle='#f5d18e';
+      ctx.fillText('នគរ  •  ADVENTURE',1200,48);
+      const progress=Math.max(0,Math.min(1,elapsed/25));
+      ctx.fillStyle='rgba(255,255,255,.22)';ctx.fillRect(0,711,1280,3);
+      ctx.fillStyle='#f2c56c';ctx.fillRect(0,711,1280*progress,3);
+      const vignette=ctx.createRadialGradient(640,360,330,640,360,760);
+      vignette.addColorStop(0,'rgba(0,0,0,0)');vignette.addColorStop(1,'rgba(0,0,0,.33)');
+      ctx.fillStyle=vignette;ctx.fillRect(0,0,1280,720);
+    };
+    const drawEnd = elapsed => {
+      const bg=cover;
+      if(bg.complete&&bg.naturalWidth)ctx.drawImage(bg,0,0,1280,720);else{ctx.fillStyle='#202d35';ctx.fillRect(0,0,1280,720);}
+      ctx.fillStyle='rgba(7,10,16,.65)';ctx.fillRect(0,0,1280,720);
+      if(logo.complete&&logo.naturalWidth)ctx.drawImage(logo,390,160,500,175);
+      ctx.textAlign='center';ctx.font='700 21px Georgia,serif';ctx.fillStyle='#fff0ca';
+      ctx.fillText('YOUR JOURNEY BEGINS NOW',640,420);
+      ctx.font='600 14px system-ui,sans-serif';ctx.fillStyle='#e5c27e';
+      ctx.fillText('EXPLORE 28 STAGES ACROSS CAMBODIA',640,458);
+      ctx.fillStyle=`rgba(255,224,161,${.35+.25*Math.sin(elapsed*4)})`;
+      ctx.fillRect(550,500,180,2);
+    };
+    const draw = () => {
+      const elapsed=(performance.now()-startedAt)/1000;
+      if(elapsed<2.6)drawCover(elapsed);
+      else if(elapsed<22.2)drawGameplay(elapsed-2.6);
+      else drawEnd(elapsed-22.2);
+      raf=requestAnimationFrame(draw);
+    };
+    raf=requestAnimationFrame(draw);
+
+    await wait(2600);
+    chapter=0;
+    releaseKeys();key('right',true);await wait(1400);key('right',false);
+    key('space',true);await wait(100);key('space',false);await wait(1200);
+    await stageShot(4);
+    chapter=1;
+    for(let i=0;i<5;i++)await swordTap();
+    key('right',true);await wait(650);key('right',false);
+    await stageShot(28,true);
+    chapter=2;
+    for(let i=0;i<11;i++)await swordTap();
+    releaseKeys();
+    await wait(2600);
+    recorder.stop();
+    await wait(1300);
+    cancelAnimationFrame(raf);
+  })().catch(error => {
+    const status=document.querySelector('#status');
+    if(status)status.textContent=`Trailer error: ${error.message}`;
+    console.error(error);
+  });
+  </script>
+</body>
+</html>
