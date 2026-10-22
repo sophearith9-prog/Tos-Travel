@@ -1,10 +1,10 @@
-import { panel, label, button, playSound } from '../ui.js';
+import { label, button, playSound } from '../ui.js';
 import { audioSettings } from '../audioSettings.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
 import { prepareEnvironment, addEnvironment } from '../environment.js';
-import { PLAYER_CHARACTER_NAME, prepareCharacterSkin } from '../characterSkin.js';
+import { prepareCharacterSkin, PLAYER_CHARACTER_NAME } from '../characterSkin.js';
 import { prepareEnemySkin } from '../enemySkin.js';
 import { addFinishTemple } from '../finishTemple.js';
 import { addFinishFlag } from '../finishFlag.js';
@@ -20,6 +20,12 @@ import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
 import { fadeSceneIn } from '../sceneTransitions.js';
+import { LEVEL6, installLevel6Terrain } from '../levels/level6Layout.js';
+import { addLevel6Gate } from '../level6Gate.js';
+import { addLevel6Shop } from '../level6Shop.js';
+import { addLevel6WaterfallEffects } from '../level6Waterfall.js';
+import { LEVEL7, installLevel7Terrain } from '../levels/level7Layout.js';
+import { LEVEL8, installLevel8Terrain } from '../levels/level8Layout.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -33,6 +39,13 @@ export class GameScene extends Phaser.Scene {
     this.levelStartScore = this.score;
     this.levelStartCoins = this.coins;
     this.lives = data.lives !== undefined ? data.lives : 3;
+    this.shields = data.shields !== undefined ? data.shields : 3;
+    this.nextShieldRecoveryAt = 0;
+    this.level3GuardianDefeated = false;
+    this.nextLevel3HintAt = 0;
+    this.level6DropUntil = 0;
+    this.dropInputDown = false;
+    this.level6EnemiesDefeated = 0;
     this.comboCount = 0;
     this.comboExpiresAt = 0;
     this.isInvulnerable = false;
@@ -85,6 +98,16 @@ export class GameScene extends Phaser.Scene {
       this.load.image('temple-jungle-atlas', 'assets/temple-jungle-expanded.png');
       this.load.image('angkor-painterly-background-wide', 'assets/angkor-painterly-background-wide.png');
       this.load.image('level4-painterly-platforms', 'assets/level4-painterly-platforms.png');
+    }
+    if (this.currentLevel === 6) {
+      this.load.image('level6-forest-platforms', 'assets/level6-forest-platforms.png');
+      this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
+    }
+    if (this.currentLevel === 7) {
+      this.load.image('level7-preah-vihear-v2', 'assets/level7-preah-vihear-v2.png');
+    }
+    if (this.currentLevel === 8) {
+      this.load.image('level8-stung-treng-mekong', 'assets/level8-stung-treng-mekong.png');
     }
     if (this.currentLevel === 3) {
       this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
@@ -192,21 +215,31 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer = map.createLayer('Platforms', tilesets, 0, 0);
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
-      if (this.currentLevel === 3) this.groundLayer.setTint(0x82958b);
+      if (this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8) this.groundLayer.setAlpha(0);
       if (this.currentLevel === 4) addLevel4PainterlyPlatforms(this, map);
     }
     if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
+    this.level6Terrain = null;
+    this.level7Terrain = null;
+    this.level8Terrain = null;
+    this.collisionGround = this.currentLevel === 6 ? installLevel6Terrain(this)
+      : this.currentLevel === 7 ? installLevel7Terrain(this)
+        : this.currentLevel === 8 ? installLevel8Terrain(this) : this.groundLayer;
     if (this.currentLevel !== 1) addEnvironment(this, map);
     addFinishTemple(this, map);
-    this.finishFlag = addFinishFlag(this, map);
+    this.finishFlag = this.currentLevel === 6 || this.currentLevel === 7 ? null : addFinishFlag(this, map);
+    this.level6Gate = this.currentLevel === 6 ? addLevel6Gate(this) : null;
+    this.level6Shop = this.currentLevel === 6 ? addLevel6Shop(this) : null;
 
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels + 80);
 
     // Spawn Player
     const customPlayer = this.textures.exists('player-character');
+    const startY = this.currentLevel === 6 ? LEVEL6.spawn.y : this.currentLevel === 7 ? LEVEL7.spawn.y : this.currentLevel === 8 ? LEVEL8.spawn.y : 150;
+    const startX = this.currentLevel === 6 ? LEVEL6.spawn.x : this.currentLevel === 7 ? LEVEL7.spawn.x : this.currentLevel === 8 ? LEVEL8.spawn.x : 50;
     this.player = customPlayer
-      ? this.physics.add.sprite(50, 150, 'player-character', 0)
-      : this.physics.add.sprite(50, 150, 'packed', 24);
+      ? this.physics.add.sprite(startX, startY, 'player-character', 0)
+      : this.physics.add.sprite(startX, startY, 'packed', 24);
     this.jumpsUsed = 0;
     this.jumpInputDown = false;
     this.player.setCollideWorldBounds(true);
@@ -225,7 +258,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.swordActionSprite = this.add.sprite(this.player.x, this.player.y, 'vireak-sword-actions', 0)
       .setOrigin(0.5, 0.625).setScale(24 / 256).setDepth(this.player.depth + 1).setVisible(false);
-    this.physics.add.collider(this.player, this.groundLayer, this.hitCoinBlock, null, this);
+    this.physics.add.collider(this.player, this.collisionGround,
+      this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 ? null : this.hitCoinBlock,
+      this.currentLevel === 6 ? () => this.time.now >= this.level6DropUntil : null, this);
+    if (this.level6Gate) this.physics.add.collider(this.player, this.level6Gate.blocker);
 
     // Spawn Coins from level config
     this.coinsGroup = this.physics.add.staticGroup();
@@ -242,7 +278,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.physics.add.overlap(this.player, this.coinsGroup, this.collectCoin, null, this);
     this.lifeItems = this.physics.add.group();
-    this.physics.add.collider(this.lifeItems, this.groundLayer);
+    this.physics.add.collider(this.lifeItems, this.collisionGround);
     this.physics.add.overlap(this.player, this.lifeItems, this.collectLifeItem, null, this);
 
     // Spawn Enemies from level config
@@ -266,14 +302,32 @@ export class GameScene extends Phaser.Scene {
         enemy.setBounce(0);
         enemy.setCollideWorldBounds(true);
         enemy.setVelocityX(-this.enemySpeed);
-        enemy.hitPoints = 3;
+        enemy.hitPoints = stoneGuardian && this.currentLevel === 3 ? 5
+          : stoneGuardian && this.currentLevel === 6 ? 6 : 3;
+        enemy.maxHitPoints = enemy.hitPoints;
+        enemy.nextHealthRecoveryAt = 0;
         if (stoneGuardian) {
-          const scale = 58 / 256;
+          const isLevel6Guardian = this.currentLevel === 6;
+          const scale = (isLevel6Guardian ? 82 : 58) / 256;
           enemy.setScale(scale).setOrigin(0.5, 1);
-          enemy.body.setSize(24 / scale, 19 / scale)
-            .setOffset((enemy.width - 24 / scale) / 2, enemy.height - 19 / scale);
+          const bodyWidth = isLevel6Guardian ? 32 : 24;
+          const bodyHeight = isLevel6Guardian ? 27 : 19;
+          enemy.body.setSize(bodyWidth / scale, bodyHeight / scale)
+            .setOffset((enemy.width - bodyWidth / scale) / 2, enemy.height - bodyHeight / scale);
           enemy.enemyKind = 'stone-guardian';
           enemy.setDepth(8);
+          if (isLevel6Guardian) {
+            enemy.isLargeGuardian = true;
+            enemy.guardianNameplate = this.add.text(enemy.x, enemy.y - 92, 'STONE GUARDIAN', {
+              fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '8px',
+              fontStyle: 'bold', color: '#ffe1a0', stroke: '#20170f', strokeThickness: 3
+            }).setOrigin(0.5).setDepth(15);
+            enemy.guardianHealthBar = this.add.graphics().setDepth(15);
+            enemy.once('destroy', () => {
+              enemy.guardianNameplate?.destroy();
+              enemy.guardianHealthBar?.destroy();
+            });
+          }
         } else if (customEnemy) {
           const scale = 28 / 96;
           enemy.setScale(scale).setOrigin(0.5, 1 - 9 / 28);
@@ -286,25 +340,28 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    this.physics.add.collider(this.enemies, this.groundLayer, null, (enemy, tile) => {
+    this.physics.add.collider(this.enemies, this.collisionGround, null, (enemy, tile) => {
       // The giant lands on platform tops without getting trapped under low ceilings.
       return !enemy.isBoss || (enemy.body.velocity.y >= 0 && enemy.body.bottom <= tile.pixelY + 12);
     });
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
     // Finish Section: Flagpole Trigger Zone (width - 15) and Castle Door (width - 7)
-    const flagPixelX = this.currentLevel === 1
+    const flagPixelX = this.currentLevel === 6 ? LEVEL6.finish.x : this.currentLevel === 7 ? LEVEL7.finish.x : this.currentLevel === 8 ? LEVEL8.finish.x : this.currentLevel === 1
       ? (map.width - 7) * 18 + 9
       : (map.width - 15) * 18 + 9;
     this.flagX = flagPixelX;
-    this.castleDoorX = (map.width - 7) * 18 + 9;
+    this.castleDoorX = this.currentLevel === 6 ? LEVEL6.finish.doorX : this.currentLevel === 7 ? LEVEL7.finish.doorX : this.currentLevel === 8 ? LEVEL8.finish.doorX : (map.width - 7) * 18 + 9;
 
     // Extend in front of the solid pole so touching it always clears the level.
-    this.goal = this.add.zone(flagPixelX, 99, 48, 198);
+    this.goal = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8
+      ? this.add.zone(flagPixelX,
+        (this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : LEVEL8.finish.floorY) - 22, 28, 44)
+      : this.add.zone(flagPixelX, 99, 48, 198);
     this.physics.add.existing(this.goal, true);
     this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
-    this.goalLabel = this.currentLevel === 2 ? this.add.text(flagPixelX + 25, 145,
-      'SEALED', {
+    this.goalLabel = this.currentLevel === 2 || this.currentLevel === 3
+      ? this.add.text(flagPixelX + 25, 145, 'SEALED', {
       fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3
     }).setOrigin(0.5).setDepth(10) : null;
@@ -314,19 +371,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, false, 0.1,
       this.currentLevel === 4 ? 0 : 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
-    this.cameras.main.setZoom(this.currentLevel === 2 ? 1.6 : 2.2);
+    this.cameras.main.setZoom(this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
     if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
     if (this.currentLevel === 2) installLevelTwoTrial(this);
     if (config.province) addProvinceScenery(this, config.province);
+    this.level6Water = this.currentLevel === 6 ? addLevel6WaterfallEffects(this) : null;
     if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
-    if (this.currentLevel === 3) {
-      const zoom = this.cameras.main.zoom;
-      this.textures.get('angkor-sunset-level3').setFilter(Phaser.Textures.FilterMode.LINEAR);
-      // Keep the full sunset composition visible as the level scrolls.
-      this.add.image(400, 225, 'angkor-sunset-level3')
-        .setDisplaySize(800 / zoom, 450 / zoom)
-        .setScrollFactor(0).setDepth(-20);
-    }
+    if (this.currentLevel === 3) addScrollingBackdrop(this, 'angkor-sunset-level3', -20, 0.18, true);
     this.createAmbientMotes();
 
     // Controls
@@ -758,29 +809,23 @@ export class GameScene extends Phaser.Scene {
     this.hudContainer = this.add.container(400 - 400 / zoom, 225 - 225 / zoom)
       .setScale(1 / zoom).setScrollFactor(0).setDepth(200).setAlpha(0);
     const textStyle = { fontFamily: 'Trebuchet MS, Arial, sans-serif', fontStyle: 'bold',
-      stroke: '#101711', strokeThickness: 6 };
+      stroke: '#101711', strokeThickness: 4 };
     const hudText = (x, y, value, size, color) => this.add.text(x, y, value, {
       ...textStyle, fontSize: `${size}px`, color
     }).setOrigin(0, 0.5);
 
-    this.lifeHearts = this.add.container(14, 23);
-    this.lifeHeartIcons = Array.from({ length: 3 }, (_, heart) => {
-      const icon = this.add.text(heart * 27, 0, '❤️', {
-        fontFamily: 'Segoe UI Emoji, Apple Color Emoji, Noto Color Emoji, sans-serif',
-        fontSize: '20px', stroke: '#351519', strokeThickness: 2
-      }).setOrigin(0, 0.5);
-      this.lifeHearts.add(icon);
-      return icon;
-    });
+    this.vitalBars = this.add.graphics();
+    this.bloodLabel = hudText(13, 14, 'BLOOD', 8, '#ffdca0');
+    this.shieldLabel = hudText(13, 33, 'SHIELD', 8, '#b9dcff');
     this.levelText = hudText(268, 23, `STAGE ${this.currentLevel}/${TOTAL_LEVELS}`, 13, '#f4f1df');
     this.scoreText = hudText(370, 23, String(this.score).padStart(5, '0'), 13, '#f4f1df');
     this.coinsText = hudText(676, 23, String(this.coins).padStart(2, '0'), 15, '#fff4dc');
     this.coinIcon = this.add.image(658, 23, 'khmer-coin', 2).setDisplaySize(19, 19);
-    this.hudContainer.add([this.lifeHearts, this.levelText, this.scoreText,
-      this.coinIcon, this.coinsText]);
-    this.drawLifeHearts();
-    this.characterNameText = hudText(91, 23, PLAYER_CHARACTER_NAME.toUpperCase(), 10, '#ffd078');
-    this.extraLivesText = hudText(151, 23, '', 11, '#f4f1df');
+    this.hudContainer.add([this.vitalBars, this.bloodLabel, this.shieldLabel,
+      this.levelText, this.scoreText, this.coinIcon, this.coinsText]);
+    this.drawVitalBars();
+    this.extraLivesText = hudText(234, 33, '', 10, '#ffd078');
+    this.characterNameText = hudText(13, 51, PLAYER_CHARACTER_NAME.toUpperCase(), 9, '#ffd078');
     this.hudContainer.add([this.characterNameText, this.extraLivesText]);
     const pauseIcon = this.add.container(770, 28);
     const pausePlate = this.add.graphics();
@@ -802,16 +847,128 @@ export class GameScene extends Phaser.Scene {
       fontSize: '12px', fontStyle: 'bold', color: '#ffe19a',
       stroke: '#172338', strokeThickness: 3
     }).setOrigin(0.5).setDepth(220).setAlpha(0);
+    if (this.currentLevel === 6) {
+      this.level6ObjectiveText = this.add.text(14, 64, 'DEFEAT 5 ENEMIES: 0/5', {
+        fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#fff2cd',
+        stroke: '#17271f', strokeThickness: 3
+      });
+      const routeHint = this.add.text(14, 79, '↓ / S: descend    •    Jump to climb', {
+        fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#fff2cd',
+        stroke: '#17271f', strokeThickness: 3
+      });
+      this.hudContainer.add([this.level6ObjectiveText, routeHint]);
+    }
+    if (this.currentLevel === 3) {
+      this.level3ObjectiveCheck = this.add.graphics();
+      this.level3ObjectiveText = this.add.text(31, 68, 'Defeat Stone Guardian', {
+        fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '11px',
+        fontStyle: 'bold', color: '#fff0bc',
+        stroke: '#100905', strokeThickness: 3
+      }).setOrigin(0, 0.5);
+      this.hudContainer.add([this.level3ObjectiveCheck, this.level3ObjectiveText]);
+      this.drawLevel3ObjectiveCheck();
+    }
     this.tweens.add({ targets: this.hudContainer, alpha: 1,
       duration: 700, delay: 120, ease: 'Sine.easeOut' });
   }
 
-  drawLifeHearts() {
+  drawVitalBars() {
     this.extraLivesText?.setText(this.lives > 3 ? '+' + (this.lives - 3) : '');
-    this.lifeHeartIcons?.forEach((icon, heart) => {
-      icon.setText(heart < this.lives ? '❤️' : '🤍');
-      icon.setAlpha(heart < this.lives ? 1 : 0.55);
-    });
+    const g = this.vitalBars;
+    if (!g) return;
+    g.clear();
+    const drawBar = (y, ratio, color, highlight) => {
+      const x = 57, width = 174, height = 13;
+      g.fillStyle(0x160e0a, 1).fillRect(x - 2, y - 2, width + 4, height + 4);
+      g.fillStyle(0xd59a35, 1).fillRect(x, y, width, height);
+      g.fillStyle(0xf0c45e, 1).fillRect(x + 3, y + 1, width - 6, 2);
+      g.fillStyle(0x27170f, 1).fillRect(x + 3, y + 3, width - 6, height - 5);
+      g.fillStyle(0x100d18, 1).fillRect(x + 5, y + 4, width - 10, height - 7);
+      const innerWidth = Math.max(0, (width - 10) * Phaser.Math.Clamp(ratio, 0, 1));
+      if (innerWidth > 0) {
+        g.fillStyle(color, 1).fillRect(x + 5, y + 4, innerWidth, height - 7);
+        g.fillStyle(highlight, 0.42).fillRect(x + 5, y + 4, innerWidth, 2);
+      }
+      // Stepped end caps and small center studs echo a pixel game's status frame.
+      g.fillStyle(0x16100d, 1).fillRect(x - 5, y + 3, 3, 7).fillRect(x + width + 2, y + 3, 3, 7);
+      g.fillStyle(0xf0c45e, 1).fillRect(x + 84, y - 4, 7, 2).fillRect(x + 84, y + height + 2, 7, 2);
+    };
+    const drawMedallion = (cx, cy, shield) => {
+      g.fillStyle(0x100d12, 1).fillRect(cx - 12, cy - 11, 24, 22);
+      g.fillStyle(0xd39a39, 1).fillRect(cx - 10, cy - 9, 20, 18);
+      g.fillStyle(0x674632, 1).fillRect(cx - 8, cy - 7, 16, 14);
+      g.fillStyle(0xf2c65f, 1).fillRect(cx - 3, cy - 13, 6, 2).fillRect(cx - 3, cy + 11, 6, 2);
+      if (shield) {
+        g.fillStyle(0x10131d, 1)
+          .fillRect(cx - 5, cy - 6, 10, 2).fillRect(cx - 7, cy - 4, 14, 4)
+          .fillRect(cx - 5, cy, 10, 4).fillRect(cx - 2, cy + 4, 4, 3);
+        g.fillStyle(0x75baf3, 1)
+          .fillRect(cx - 4, cy - 4, 8, 2).fillRect(cx - 5, cy - 2, 10, 3)
+          .fillRect(cx - 3, cy + 1, 6, 2).fillRect(cx - 1, cy + 3, 2, 2);
+        g.fillStyle(0xd5efff, 1).fillRect(cx - 3, cy - 4, 2, 2);
+      } else {
+        g.fillStyle(0x241018, 1)
+          .fillRect(cx - 7, cy - 4, 5, 4).fillRect(cx + 2, cy - 4, 5, 4)
+          .fillRect(cx - 9, cy, 18, 3).fillRect(cx - 7, cy + 3, 14, 3)
+          .fillRect(cx - 4, cy + 6, 8, 2).fillRect(cx - 2, cy + 8, 4, 2);
+        g.fillStyle(0xe8506d, 1)
+          .fillRect(cx - 6, cy - 3, 4, 3).fillRect(cx + 2, cy - 3, 4, 3)
+          .fillRect(cx - 7, cy, 14, 3).fillRect(cx - 5, cy + 3, 10, 3)
+          .fillRect(cx - 3, cy + 6, 6, 2);
+        g.fillStyle(0xffa1a5, 1).fillRect(cx - 5, cy - 3, 2, 2);
+      }
+    };
+    const now = this.time?.now || 0;
+    const recharge = this.shields >= 3 ? 1 : (this.nextShieldRecoveryAt > now
+      ? 1 - (this.nextShieldRecoveryAt - now) / 8000 : 0);
+    drawMedallion(59, 15, false);
+    drawMedallion(59, 37, true);
+    drawBar(7, this.lives / 3, 0xc73854, 0xff8091);
+    drawBar(26, (this.shields + recharge) / 3, 0x536dbb, 0x9bcaff);
+  }
+
+  updateLevel6GuardianDisplay() {
+    const guardian = this.enemies?.getChildren().find(enemy => enemy.active && enemy.isLargeGuardian);
+    if (!guardian) return;
+    const barWidth = 48, barHeight = 5;
+    const barY = guardian.y - guardian.displayHeight - 4;
+    guardian.guardianNameplate?.setPosition(guardian.x, barY - 8);
+    guardian.guardianHealthBar?.clear()
+      .fillStyle(0x17120f, 0.95).fillRect(guardian.x - barWidth / 2, barY, barWidth, barHeight)
+      .fillStyle(0x842735, 1).fillRect(guardian.x - barWidth / 2 + 1, barY + 1, barWidth - 2, barHeight - 2)
+      .fillStyle(0xe64d5f, 1).fillRect(guardian.x - barWidth / 2 + 1, barY + 1,
+        (barWidth - 2) * Phaser.Math.Clamp(guardian.hitPoints / guardian.maxHitPoints, 0, 1), barHeight - 2);
+  }
+
+  drawLevel3ObjectiveCheck(checked = this.level3GuardianDefeated) {
+    if (!this.level3ObjectiveCheck) return;
+    const g = this.level3ObjectiveCheck;
+    g.clear();
+    // A small transparent Khmer gold checkbox sits directly beneath the shield bar.
+    g.lineStyle(1.5, 0xe4bd67, 0.95).strokeRect(14, 62, 12, 12);
+    if (checked) {
+      g.lineStyle(2.5, 0x9ee59b, 1)
+        .beginPath().moveTo(16, 68).lineTo(19, 71).lineTo(24, 64).strokePath();
+    }
+  }
+
+  recordLevel3GuardianDefeat(enemy) {
+    if (this.currentLevel !== 3 || enemy.enemyKind !== 'stone-guardian' ||
+        this.level3GuardianDefeated) return;
+    this.level3GuardianDefeated = true;
+    this.level3ObjectiveText?.setText('Stone Guardian defeated');
+    this.drawLevel3ObjectiveCheck(true);
+    this.goalLabel?.setText('OPEN');
+    this.showFloatingText(enemy.x, enemy.y - 24, 'PATH OPEN!', '#ffe3a1');
+  }
+
+  recordLevel6EnemyDefeat(enemy) {
+    if (this.currentLevel !== 6 || enemy.level6DefeatRecorded) return;
+    enemy.level6DefeatRecorded = true;
+    this.level6EnemiesDefeated = Math.min(5, this.level6EnemiesDefeated + 1);
+    this.level6ObjectiveText?.setText(`DEFEAT 5 ENEMIES: ${this.level6EnemiesDefeated}/5`);
+    this.level6Gate?.status.setText(`GATE CLOSED · ${this.level6EnemiesDefeated}/5`);
+    if (this.level6EnemiesDefeated === 5) this.level6Gate?.open();
   }
 
   prepareCoinBlocks(coins) {
@@ -1082,14 +1239,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateHUD() {
-    this.levelText.setText(`STAGE ${this.currentLevel}/${TOTAL_LEVELS}`);
+    this.levelText.setText(`${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`);
     this.scoreText.setText(String(this.score).padStart(5, '0'));
     this.coinsText.setText(String(this.coins).padStart(2, '0'));
-    this.drawLifeHearts();
+    this.drawVitalBars();
   }
 
   handlePlayerEnemyCollision(player, enemy, forceDamage = false) {
-    if (this.isLevelFinished) return;
+    if (this.isLevelFinished || this.level6Shop?.busy) return;
 
     const isFalling = player.body.velocity.y > 0;
     const isAbove = (player.body.bottom - enemy.body.top) < 10;
@@ -1097,7 +1254,7 @@ export class GameScene extends Phaser.Scene {
     if (!forceDamage && isFalling && isAbove) {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
-      // The guardian can be damaged with the sword; stomping only bounces the player.
+      // Stomping only bounces the player; bosses cannot be damaged this way.
       if (enemy.isBoss || enemy.enemyKind === 'stone-guardian') return;
       damageEnemy(this, enemy);
     } else {
@@ -1114,7 +1271,13 @@ export class GameScene extends Phaser.Scene {
       // Play an impact cue for every damaging enemy contact; invulnerable overlaps return above.
       playSound(this, 'stomp', { volume: 0.72, rate: 1.05 });
 
-      this.lives -= 1;
+      if (this.shields > 0) {
+        this.shields--;
+        this.nextShieldRecoveryAt = this.shields < 3 ? this.time.now + 8000 : 0;
+      } else {
+        this.lives--;
+        if (!this.nextShieldRecoveryAt) this.nextShieldRecoveryAt = this.time.now + 8000;
+      }
       this.updateHUD();
 
       if (this.lives <= 0) {
@@ -1147,11 +1310,26 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.currentLevel === 6 && this.level6EnemiesDefeated < 5) {
+      this.showFloatingText(player.x, player.y - 24,
+        `DEFEAT GUARDIANS ${this.level6EnemiesDefeated}/5`, '#ffe3a1');
+      return;
+    }
+    if (this.currentLevel === 6 && (!player.body.blocked.down ||
+        Math.abs(player.body.bottom - LEVEL6.finish.floorY) > 5)) return;
     if (this.currentLevel === 2 && !this.templeSwitchActivated) {
       if (this.time.now >= this.nextGateHintAt) {
         this.showFloatingText(player.x, player.y - 24,
           'Step on the lotus switch to open the Angkor gate!', '#ffe3a1');
         this.nextGateHintAt = this.time.now + 1400;
+      }
+      return;
+    }
+    if (this.currentLevel === 3 && !this.level3GuardianDefeated) {
+      if (this.time.now >= this.nextLevel3HintAt) {
+        this.showFloatingText(player.x, player.y - 24,
+          'Defeat the stone guardian first!', '#ffe3a1');
+        this.nextLevel3HintAt = this.time.now + 1400;
       }
       return;
     }
@@ -1186,7 +1364,8 @@ export class GameScene extends Phaser.Scene {
     player.play('player-jump');
     this.isSlidingDownFlag = true;
 
-    const targetY = 10 * 18 - 8; // Ground level near flagpole base
+    const finishFloorY = this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : this.currentLevel === 8 ? LEVEL8.finish.floorY : 198;
+    const targetY = finishFloorY - 26;
 
     this.tweens.add({
       targets: player,
@@ -1208,14 +1387,18 @@ export class GameScene extends Phaser.Scene {
         this.isEnteringCastle = true;
         this.tweens.add({
           targets: player,
-          x: this.currentLevel >= 3 ? this.castleDoorX - 20 : this.castleDoorX,
-          y: 11 * 18 - 9,
+          x: this.currentLevel >= 3 && this.currentLevel !== 6 ? this.castleDoorX - 20 : this.castleDoorX,
+          y: finishFloorY - 9,
           duration: (this.castleDoorX - this.flagX) / 65 * 1000,
           ease: 'Linear',
           onComplete: () => {
+            if (this.currentLevel === 6) {
+              this.triggerCastleFireworks();
+              return;
+            }
             if (this.currentLevel >= 3) {
               this.tweens.add({ targets: player, x: this.castleDoorX,
-                y: 11 * 18 - 29, duration: 450, ease: 'Linear',
+                y: finishFloorY - 29, duration: 450, ease: 'Linear',
                 onComplete: () => this.triggerCastleFireworks() });
             } else this.triggerCastleFireworks();
           }
@@ -1232,12 +1415,16 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     if (this.currentLevel !== 2) this.player.setVisible(false);
 
-    const castleCenter = this.currentLevel === 2 ? this.flagX : (this.map.width - 7) * 18 + 9;
+    const castleCenter = this.currentLevel === 2 ? this.flagX : this.castleDoorX;
     const colors = ['#ffd700', '#ff3366', '#33ccff', '#33ff66'];
     for (let f = 0; f < 4; f++) {
       this.time.delayedCall(f * 350, () => {
         const fx = castleCenter + (Math.random() * 40 - 20);
-        const fy = 60 + Math.random() * 30;
+        const fy = this.currentLevel === 6
+          ? LEVEL6.finish.floorY - 120 + Math.random() * 30
+          : this.currentLevel === 7 ? LEVEL7.finish.floorY - 120 + Math.random() * 30
+            : this.currentLevel === 8 ? LEVEL8.finish.floorY - 120 + Math.random() * 30
+              : 60 + Math.random() * 30;
         this.createFireworkSparkles(fx, fy, colors[f % colors.length]);
       });
     }
@@ -1268,6 +1455,19 @@ export class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (!this.player) return;
+
+    this.drawVitalBars();
+    this.level6Water?.update(delta);
+    if (this.level6Shop?.update()) return;
+    this.updateLevel6GuardianDisplay();
+
+    if (!this.isLevelFinished && this.lives > 0 && this.shields < 3 &&
+        this.nextShieldRecoveryAt && this.time.now >= this.nextShieldRecoveryAt) {
+      this.shields = Math.min(3, this.shields + 1);
+      this.nextShieldRecoveryAt = this.shields < 3 ? this.time.now + 8000 : 0;
+      this.updateHUD();
+      this.showFloatingText(this.player.x, this.player.y - 24, '+1 SHIELD', '#9fe8ff');
+    }
 
     const frameDelta = Math.min(50, Math.max(1, Number(delta) || 16.67));
     const followLerp = 1 - Math.exp(-6.32 * frameDelta / 1000);
@@ -1308,7 +1508,16 @@ export class GameScene extends Phaser.Scene {
     const moveSpeed = sprinting ? (this.currentLevel === TOTAL_LEVELS ? 230 : 200) : 150;
     const attacking = this.time.now < (this.meleeAnimationUntil || 0);
     const actionLocked = attacking;
-    const grounded = this.player.body.blocked.down;
+    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
+    const dropHeld = Boolean(touchControls.drop || down);
+    const dropPressed = dropHeld && !this.dropInputDown;
+    this.dropInputDown = dropHeld;
+    const dropping = this.currentLevel === 6 && grounded && dropPressed;
+    if (dropping) {
+      this.level6DropUntil = this.time.now + 180;
+      this.player.body.reset(this.player.x, this.player.y + 3);
+      this.player.setVelocityY(60);
+    }
     const landed = this.wasPlayerAirborne && grounded;
     if (grounded) this.jumpsUsed = 0;
     if (landed) {
@@ -1320,7 +1529,7 @@ export class GameScene extends Phaser.Scene {
     if (attacking) {
       targetVelocityX = 0;
     }
-    if (grounded && down && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
+    if (grounded && down && this.currentLevel !== 6 && !actionLocked && this.time.now >= (this.landingAnimationUntil || 0)) {
       this.player.setVelocityX(0);
       this.player.play('player-crouch', true);
     } else if (left) {
@@ -1344,7 +1553,7 @@ export class GameScene extends Phaser.Scene {
     const movementBlend = 1 - Math.exp(-movementRate * frameDelta / 1000);
     this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, movementBlend));
 
-    if (jumpPressed && this.jumpsUsed < 2) {
+    if (jumpPressed && this.jumpsUsed < 2 && !dropping) {
       const doubleJump = this.jumpsUsed === 1 && !grounded;
       this.jumpsUsed++;
       this.player.setVelocityY(doubleJump ? -320 : -350);
@@ -1353,7 +1562,7 @@ export class GameScene extends Phaser.Scene {
       playSound(this, 'jump', { volume: doubleJump ? 0.48 : 0.4, rate: doubleJump ? 1.25 : 1 });
     }
 
-    if (!this.player.body.blocked.down) {
+    if (!grounded) {
       if (!actionLocked) this.player.play('player-jump', true);
     }
 
@@ -1381,7 +1590,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Pit fall detection
-    if (this.player.y > 280) {
+    const fallLimit = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8
+      ? this.map.heightInPixels + 30 : 280;
+    if (this.player.y > fallLimit) {
       this.sound.stopByKey(this.musicKey);
       this.scene.start('GameOverScene', {
         level: this.currentLevel,

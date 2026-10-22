@@ -1,7 +1,13 @@
 import { PROVINCE_ROUTE } from './provinceRoute.js';
+import { LEVEL6 } from './level6Layout.js';
+import { LEVEL7 } from './level7Layout.js';
+import { LEVEL8 } from './level8Layout.js';
 
 export function createProvinceLevel(province, index) {
-  const width = 200 + (index % 4) * 10;
+  const width = province.id === 'oddar-meanchey' ? 45
+    : province.id === 'preah-vihear' ? LEVEL7.width / 18
+      : province.id === 'stung-treng' ? LEVEL8.width / 18
+      : 200 + (index % 4) * 10;
   const coins = [], enemies = [];
   for (let x = 15; x < width - 27; x += 22) {
     if (province.id !== 'banteay-meanchey' || x > 29) {
@@ -21,12 +27,27 @@ export function createProvinceLevel(province, index) {
       { x: 810, y: 150 }, { x: 1460, y: 110 }, { x: 2070, y: 150 },
       { x: 2700, y: 110 }, { x: 3190, y: 150 });
   }
+  if (province.id === 'oddar-meanchey') {
+    coins.splice(0, coins.length, ...LEVEL6.coins);
+    enemies.splice(0, enemies.length, ...LEVEL6.enemies);
+  }
+  if (province.id === 'preah-vihear') {
+    coins.splice(0, coins.length, ...LEVEL7.coins);
+    enemies.splice(0, enemies.length, ...LEVEL7.enemies);
+  }
+  if (province.id === 'stung-treng') {
+    coins.splice(0, coins.length, ...LEVEL8.coins);
+    enemies.splice(0, enemies.length, ...LEVEL8.enemies);
+  }
   return { title: province.name, province, width, skyColor: province.sky,
     enemySpeed: 40 + Math.min(15, Math.floor(index / 4) * 3), coins, enemies };
 }
 
 export function createProvinceMap(level) {
   if (level.province.id === 'siem-reap') return createSiemReapMap(level);
+  if (level.province.id === 'oddar-meanchey') return createOddarMeancheyMap();
+  if (level.province.id === 'preah-vihear') return createLevel7Map();
+  if (level.province.id === 'stung-treng') return createLevel8Map();
   const width = level.width, height = 15;
   const grid = Array.from({ length: height }, () => Array(width).fill(0));
   const routeIndex = PROVINCE_ROUTE.findIndex(p => p.id === level.province.id);
@@ -39,7 +60,9 @@ export function createProvinceMap(level) {
     for (let y = 12; y < height; y++) grid[y][x] = pit(x - 1) ? 21 : pit(x + 1) ? 23 : 22;
   }
   const platform = (x, count, row) => {
-    for (let i = 0; i < count; i++) grid[row][x + i] = i === 0 ? 1 : i === count - 1 ? 3 : 2;
+    for (let i = 0; i < count; i++) {
+      grid[row][x + i] = i === 0 ? 1 : i === count - 1 ? 3 : 2;
+    }
   };
   pits.forEach(([x], i) => platform(x - 2, 7, 8 - i % 2));
   for (let x = 12; x < width - 30; x += 22) {
@@ -56,6 +79,40 @@ export function createProvinceMap(level) {
   grid[2][flag] = 111;
   for (let y = 3; y < 10; y++) grid[y][flag] = 131;
   grid[3][flag + 1] = 112; grid[4][flag + 1] = 112; grid[10][flag] = 48;
+  return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
+    orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',
+    layers: [{ id: 1, name: 'Platforms', type: 'tilelayer', width, height,
+      opacity: 1, visible: true, x: 0, y: 0, data: grid.flat() }],
+    tilesets: [{ firstgid: 1, name: 'tilemap_packed', tilewidth: 18, tileheight: 18,
+      tilecount: 180, columns: 20, image: 'tilemap_packed.png', imagewidth: 360, imageheight: 162 }] };
+}
+
+function createLevel7Map() {
+  const width = LEVEL7.width / 18, height = LEVEL7.height / 18;
+  const grid = Array.from({ length: height }, () => Array(width).fill(0));
+  return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
+    orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',
+    layers: [{ id: 1, name: 'Platforms', type: 'tilelayer', width, height,
+      opacity: 1, visible: true, x: 0, y: 0, data: grid.flat() }],
+    tilesets: [{ firstgid: 1, name: 'tilemap_packed', tilewidth: 18, tileheight: 18,
+      tilecount: 180, columns: 20, image: 'tilemap_packed.png', imagewidth: 360, imageheight: 162 }] };
+}
+
+function createLevel8Map() {
+  const width = LEVEL8.width / 18, height = LEVEL8.height / 18;
+  const grid = Array.from({ length: height }, () => Array(width).fill(0));
+  return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
+    orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',
+    layers: [{ id: 1, name: 'Platforms', type: 'tilelayer', width, height,
+      opacity: 1, visible: true, x: 0, y: 0, data: grid.flat() }],
+    tilesets: [{ firstgid: 1, name: 'tilemap_packed', tilewidth: 18, tileheight: 18,
+      tilecount: 180, columns: 20, image: 'tilemap_packed.png', imagewidth: 360, imageheight: 162 }] };
+}
+
+function createOddarMeancheyMap() {
+  const width = 45, height = 45;
+  const grid = Array.from({ length: height }, () => Array(width).fill(0));
+  // Level 6 uses precise artwork surfaces from level6Layout.js.
   return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
     orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',
     layers: [{ id: 1, name: 'Platforms', type: 'tilelayer', width, height,

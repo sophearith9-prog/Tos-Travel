@@ -77,6 +77,12 @@ function simpleIconButton(scene, x, y, icon, action) {
 export class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
 
+  preload() {
+    if (!this.textures.exists('nokor-adventure-logo')) {
+      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
+    }
+  }
+
   create({ resumeMusic = false } = {}) {
     fadeSceneIn(this);
     this.add.rectangle(400, 225, 800, 450, 0x060e1c, 0.8).setInteractive();
@@ -123,11 +129,12 @@ export class PauseScene extends Phaser.Scene {
         { x: 400 + side * 169, y: 66 }
       ], true);
     }
-    this.add.text(400, 58, 'GAME PAUSED', {
+    this.add.image(400, 72, 'nokor-adventure-logo').setDisplaySize(218, 109);
+    this.add.text(400, 132, 'GAME PAUSED', {
       fontFamily: 'Georgia, Trebuchet MS, sans-serif', fontSize: '28px',
       color: '#f0c978', fontStyle: 'bold', letterSpacing: 1
     }).setOrigin(0.5);
-    this.add.text(400, 91, `LEVEL ${game.currentLevel} / ${TOTAL_LEVELS}`, {
+    this.add.text(400, 158, `LEVEL ${game.currentLevel} / ${TOTAL_LEVELS}`, {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
       color: '#b5c5d7', letterSpacing: 1
     }).setOrigin(0.5);
@@ -149,23 +156,23 @@ export class PauseScene extends Phaser.Scene {
       fadeToScene(this, destination, data, { stop: ['GameScene'] });
     };
 
-    actionButton(this, 400, 145, 280, 44, 'RESUME  >', resume, true);
-    actionButton(this, 400, 199, 280, 44, 'Restart Level', () => leave('GameScene', {
+    actionButton(this, 400, 190, 280, 38, 'RESUME  >', resume, true);
+    actionButton(this, 400, 236, 280, 38, 'Restart Level', () => leave('GameScene', {
       level: game.currentLevel, score: game.levelStartScore,
       coins: game.levelStartCoins, lives: 3
     }));
-    actionButton(this, 400, 253, 280, 44, 'Level Select', () => leave('LevelSelectScene'));
-    actionButton(this, 400, 307, 280, 44, 'Back to Home', () => leave('MainMenuScene'));
+    actionButton(this, 400, 282, 280, 38, 'Level Select', () => leave('LevelSelectScene'));
+    actionButton(this, 400, 328, 280, 38, 'Back to Home', () => leave('MainMenuScene'));
 
-    const musicToggle = simpleIconButton(this, 370, 364, audioSettings.music ? '\u266b' : '\u266a', () => setAudioEnabled('music', !audioSettings.music));
-    const soundToggle = simpleIconButton(this, 430, 364, audioSettings.sound ? '\u{1f50a}\ufe0e' : '\u{1f507}\ufe0e', () => setAudioEnabled('sound', !audioSettings.sound));
+    const musicToggle = simpleIconButton(this, 370, 378, audioSettings.music ? '\u266b' : '\u266a', () => setAudioEnabled('music', !audioSettings.music));
+    const soundToggle = simpleIconButton(this, 430, 378, audioSettings.sound ? '\u{1f50a}\ufe0e' : '\u{1f507}\ufe0e', () => setAudioEnabled('sound', !audioSettings.sound));
     const syncAudioButtons = () => {
       musicToggle.caption.setText(audioSettings.music ? '\u266b' : '\u266a');
       soundToggle.caption.setText(audioSettings.sound ? '\u{1f50a}\ufe0e' : '\u{1f507}\ufe0e');
     };
     const unsubscribeAudio = onAudioSettingsChange(syncAudioButtons);
     this.events.once('shutdown', unsubscribeAudio);
-    label(this, 400, 402, 'ESC to resume', 11, '#a4b6cb');
+    label(this, 400, 408, 'ESC to resume', 11, '#a4b6cb');
 
     if (this.input.keyboard) {
       // Ignore the Escape event that opened the menu and held-key repeats.

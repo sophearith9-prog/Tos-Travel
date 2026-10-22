@@ -9,11 +9,12 @@ export function prepareProvinceTerrain(scene, province) {
   ctx.imageSmoothingEnabled = true;ctx.drawImage(source,0,0);
   const beach = ['island-coast','turquoise-coast'].includes(province.theme);
   const stone = ['palace-night','cliff-temple','brick-temple','angkor','forest-temple','temple-lake'].includes(province.theme);
+  const forestTemple = province.id === 'oddar-meanchey';
   const banteay = province.id === 'banteay-meanchey';
   for (const id of [1,2,3,21,22,23]) {
     const x = (id-1)%20*18, y = Math.floor((id-1)/20)*18;
     ctx.save();ctx.beginPath();ctx.rect(x,y,18,18);ctx.clip();
-    ctx.fillStyle=banteay?'#504b3e':beach?'#c8a776':stone?'#8f805f':'#947044';ctx.fillRect(x,y,18,18);
+    ctx.fillStyle=banteay?'#504b3e':beach?'#c8a776':forestTemple?'#555e50':stone?'#8f805f':'#947044';ctx.fillRect(x,y,18,18);
     if (banteay) {
       const stones = [[1, 5, 6, 4], [9, 3, 7, 5], [4, 12, 8, 4], [13, 12, 4, 3]];
       stones.forEach(([dx, dy, width, height], index) => {
@@ -23,14 +24,20 @@ export function prepareProvinceTerrain(scene, province) {
         ctx.fillRect(x + dx, y + dy, width, 1);
       });
     } else {
-      ctx.fillStyle=beach?'#e9d9ae':stone?'#b6a77e':'#b58a56';
+      ctx.fillStyle=beach?'#e9d9ae':forestTemple?'#838772':stone?'#b6a77e':'#b58a56';
       for(let row=0;row<3;row++)for(let col=0;col<3;col++)ctx.fillRect(x+col*7-row%2*3,y+row*6+1,5,4);
+      if (forestTemple) {
+        ctx.fillStyle = '#a8ae83';
+        ctx.fillRect(x + 2, y + 2, 4, 1); ctx.fillRect(x + 10, y + 8, 5, 1);
+        ctx.fillStyle = '#465941';
+        ctx.fillRect(x + 7, y + 6, 3, 2); ctx.fillRect(x + 1, y + 13, 4, 2);
+      }
     }
-    if(id<=3){ctx.fillStyle=banteay?'#675f43':beach?'#fff0c9':stone?'#d3c18d':province.land;ctx.fillRect(x,y,18,3);
-      ctx.fillStyle=banteay?'#78804e':beach?'#e6ce97':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
+    if(id<=3){ctx.fillStyle=banteay?'#675f43':beach?'#fff0c9':forestTemple?'#a4bd70':stone?'#d3c18d':province.land;ctx.fillRect(x,y,18,3);
+      ctx.fillStyle=banteay?'#78804e':beach?'#e6ce97':forestTemple?'#63834b':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
     ctx.restore();
   }
-  texture.refresh();texture.setFilter(Phaser.Textures.FilterMode.LINEAR);return key;
+  texture.refresh();texture.setFilter(forestTemple ? Phaser.Textures.FilterMode.NEAREST : Phaser.Textures.FilterMode.LINEAR);return key;
 }
 
 export function prepareLevel4AtlasTiles(scene) {
@@ -277,6 +284,22 @@ export function prepareProvinceSceneryTexture(scene, province) {
       rect(0,201,400,24,theme==='turquoise-coast'?'#fff0ca':'#e8d3a3');
       [30,71,355].forEach(x=>palm(x,208,55));
       if(theme==='misty-coast'){hill(60,154,180,93,'#789786');rect(0,105,170,5,'#d5d8bd');rect(15,116,140,3,'#d5d8bd');}
+    } else if (theme === 'forest-temple') {
+      // A layered Oddar Meanchey jungle gorge with old Khmer stonework and falling water.
+      hill(92,182,270,116,'#45674d');hill(293,177,300,104,'#355a45');
+      hill(200,170,440,77,'#69845b');water(174,51);
+      polygon([[0,129],[48,104],[94,115],[131,148],[131,184],[0,184]],'#596254');
+      polygon([[0,132],[45,109],[83,120],[118,151],[118,178],[0,178]],'#777b65');
+      polygon([[274,114],[319,97],[365,111],[400,129],[400,183],[274,183]],'#505a4c');
+      polygon([[291,119],[322,103],[359,115],[389,133],[389,176],[291,176]],'#777b65');
+      for(const [x,y,w] of [[18,133,34],[52,143,27],[76,154,32],[298,130,30],[334,143,38],[360,157,23]]){
+        rect(x,y,w,4,'#92927a');rect(x+3,y+7,w-7,3,'#5b6553');
+      }
+      waterfall(305,180,83);
+      temple(171,172,false,false);
+      [12,42,91,248,367,391].forEach((x,i)=>tree(x,205,47+(i%3)*9));
+      [22,108,230,350].forEach(x=>{rect(x,191,17,4,'#7c8759');rect(x+4,187,5,4,'#9aad65');rect(x+12,188,4,3,'#59774b');});
+      for(let i=0;i<12;i++)rect(12+i*31,165+i%3*9,12,1,'#a7d4c2');
     } else if (['mountain-falls','highland-falls','mangrove-falls','crater-lake','hill-pagoda','pine-forest'].includes(theme)) {
       hill(105,182,230,105,'#65836a');hill(305,187,240,88,'#4b6b56');water(178,47);
       if(theme==='crater-lake'){rect(45,167,310,30,'#398b98');rect(60,169,280,3,'#9fd4be');}
@@ -338,10 +361,26 @@ export function prepareProvinceSceneryTexture(scene, province) {
 export function addProvinceScenery(scene, province) {
   const wideAngkor = province.id === 'siem-reap'
     && scene.textures.exists('angkor-painterly-background-wide');
+  const forestPanorama = province.id === 'oddar-meanchey'
+    && scene.textures.exists('level6-forest-platforms');
+  const cliffTemplePanorama = province.id === 'preah-vihear'
+    && scene.textures.exists('level7-preah-vihear-v2');
+  const mekongPanorama = province.id === 'stung-treng'
+    && scene.textures.exists('level8-stung-treng-mekong');
   const key = wideAngkor ? 'angkor-painterly-background-wide'
-    : prepareProvinceSceneryTexture(scene, province);
+    : forestPanorama ? 'level6-forest-platforms'
+      : cliffTemplePanorama ? 'level7-preah-vihear-v2'
+        : mekongPanorama ? 'level8-stung-treng-mekong'
+      : prepareProvinceSceneryTexture(scene, province);
   const zoom = scene.cameras.main.zoom;
   if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
+  else if ((province.id === 'oddar-meanchey' && forestPanorama) || cliffTemplePanorama || mekongPanorama) {
+    scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    scene.add.image(scene.map.widthInPixels / 2, scene.map.heightInPixels / 2, key, '__BASE')
+      .setDisplaySize(scene.map.widthInPixels, scene.map.heightInPixels)
+      .setDepth(-20);
+  }
+  else if (province.id === 'oddar-meanchey') addScrollingBackdrop(scene, key, -20, 0.12, false, true);
   else if (province.id === 'siem-reap') {
     addScrollingBackdrop(scene, key, -20, 0.20, !wideAngkor, wideAngkor);
   }

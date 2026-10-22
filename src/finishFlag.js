@@ -1,3 +1,6 @@
+import { LEVEL6 } from './levels/level6Layout.js';
+import { LEVEL8 } from './levels/level8Layout.js';
+
 // Shared by every level: a slender pole and folded, striped orange-red banner.
 export function addFinishFlag(scene, map) {
   const column = map.width - 15;
@@ -60,10 +63,13 @@ export function addFinishFlag(scene, map) {
     ctx.lineTo(20, 15); ctx.closePath(); ctx.fill();
     texture.refresh();
   }
-  const poleX = column * 18 + 9;
-  scene.add.image(poleX, 198, 'finish-flag-art')
+  const poleX = scene.currentLevel === 6 ? LEVEL6.finish.x
+    : scene.currentLevel === 8 ? LEVEL8.finish.x : column * 18 + 9;
+  const baseY = scene.currentLevel === 6 ? LEVEL6.finish.floorY
+    : scene.currentLevel === 8 ? LEVEL8.finish.floorY : 198;
+  scene.add.image(poleX, baseY, 'finish-flag-art')
     .setOrigin(24 / 104, 190 / 192).setScale(0.5).setDepth(-1);
-  return scene.add.image(poleX + 2, 151, 'finish-flag-banner')
+  return scene.add.image(poleX + 2, baseY - (190 - 15) * 0.5, 'finish-flag-banner')
     .setOrigin(0, 0).setScale(0.35).setDepth(-1)
-    .setData('raisedY', 198 - (190 - 15) * 0.5);
+    .setData('raisedY', baseY - (190 - 15) * 0.5);
 }

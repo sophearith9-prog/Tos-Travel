@@ -144,6 +144,8 @@ PROVINCE_ROUTE.forEach((province, index) => {
   LEVEL_CONFIGS[index + 4] = createProvinceLevel(province, index);
 });
 
+LEVEL_CONFIGS[6].title = 'The Khmer Temple Gate';
+
 // Spread the requested rock throwers across each stage; retain gold and green enemies.
 for (const [level, blackCount] of [[3, 1], [4, 2], [5, 3]]) {
   const enemies = LEVEL_CONFIGS[level].enemies;

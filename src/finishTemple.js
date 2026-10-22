@@ -1,5 +1,7 @@
 // A small, code-drawn Angkor Wat-inspired silhouette with five lotus towers.
 export function addFinishTemple(scene, map) {
+  // These panoramic levels already include their shrine structures.
+  if (scene.currentLevel === 6 || scene.currentLevel === 7 || scene.currentLevel === 8) return;
   const center = (map.width - 7) * 18 + 9;
   const ground = 11 * 18;
   scene.groundLayer.forEachTile(tile => {

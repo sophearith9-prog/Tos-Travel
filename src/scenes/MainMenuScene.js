@@ -13,8 +13,8 @@ export class MainMenuScene extends Phaser.Scene {
     if (!this.textures.exists('menu-background')) {
       this.load.image('menu-background', 'assets/title-temple-sunset.png');
     }
-    if (!this.textures.exists('game-logo')) {
-      this.load.image('game-logo', 'assets/game-logo.png');
+    if (!this.textures.exists('nokor-adventure-logo')) {
+      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
     }
     if (!this.textures.exists('character-skin-source')) {
       this.load.image('character-skin-source', 'assets/character-khmer.png');
@@ -40,7 +40,7 @@ export class MainMenuScene extends Phaser.Scene {
     }
 
     label(this, 155, 48, 'THE LITTLE ARCADE  /  CAMBODIA', 10, '#f0bd68');
-    this.add.image(206, 137, 'game-logo').setDisplaySize(300, 130);
+    this.add.image(206, 137, 'nokor-adventure-logo').setDisplaySize(300, 150);
     this.add.text(69, 220, 'A little courage. A journey across Cambodia.\nExplore 24 provinces, the capital, and hidden treasures.', {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
       color: '#f5f4f0', lineSpacing: 6, wordWrap: { width: 277 }

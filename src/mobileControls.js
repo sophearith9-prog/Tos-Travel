@@ -1,4 +1,4 @@
-export const touchControls = { left: false, right: false, jump: false, attack: false };
+export const touchControls = { left: false, right: false, jump: false, attack: false, drop: false };
 
 export function installMobileControls(game) {
   const controls = document.querySelector('.touch-controls');
@@ -74,6 +74,7 @@ export function installMobileControls(game) {
   let watchedScene;
   game.events.on('poststep', () => {
     const scene = game.scene.getScene('GameScene');
+    controls.querySelector('[data-action="drop"]').hidden = scene?.currentLevel !== 6;
     if (scene && scene !== watchedScene) {
       watchedScene = scene;
       for (const event of ['pause', 'shutdown']) scene.events.on(event, reset);

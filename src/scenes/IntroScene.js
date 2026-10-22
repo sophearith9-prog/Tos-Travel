@@ -12,8 +12,8 @@ export class IntroScene extends Phaser.Scene {
     if (!this.textures.exists('intro-background')) {
       this.load.image('intro-background', 'assets/intro-temple-dusk.png');
     }
-    if (!this.textures.exists('game-logo')) {
-      this.load.image('game-logo', 'assets/game-logo.png');
+    if (!this.textures.exists('nokor-adventure-logo')) {
+      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
     }
     if (!this.textures.exists('character-skin-source')) {
       this.load.image('character-skin-source', 'assets/character-khmer.png');
@@ -52,8 +52,8 @@ export class IntroScene extends Phaser.Scene {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '12px',
       fontStyle: 'bold', color: '#ffd06f', letterSpacing: 4
     }).setOrigin(0.5).setAlpha(0);
-    const titleScale = 430 / this.textures.get('game-logo').getSourceImage().width;
-    const title = this.add.image(400, 166, 'game-logo')
+    const titleScale = 390 / this.textures.get('nokor-adventure-logo').getSourceImage().width;
+    const title = this.add.image(400, 166, 'nokor-adventure-logo')
       .setScale(titleScale * 0.92).setAlpha(0);
     const subtitle = this.add.text(400, 272, 'A JOURNEY THROUGH CAMBODIA', {
       fontFamily: 'Trebuchet MS, sans-serif', fontSize: '13px',

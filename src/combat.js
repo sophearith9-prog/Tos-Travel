@@ -47,7 +47,7 @@ function playSwordSound(scene, kind, weight = 0) {
   const now = context.currentTime;
 
   if (kind === 'swing') {
-    const duration = 0.14 + weight * 0.015;
+    const duration = 0.16 + weight * 0.015;
     const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
     const samples = buffer.getChannelData(0);
     for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
@@ -60,13 +60,27 @@ function playSwordSound(scene, kind, weight = 0) {
     filter.frequency.setValueAtTime(2400 + weight * 180, now);
     filter.frequency.exponentialRampToValueAtTime(520, now + duration);
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.12 + weight * 0.015, now + 0.025);
+    gain.gain.linearRampToValueAtTime(0.17 + Math.min(weight, 3) * 0.018, now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     source.connect(filter);
     filter.connect(gain);
     gain.connect(destination);
     source.start(now);
     source.stop(now + duration);
+
+    // A short bright tone makes the sword slash read clearly over the music.
+    const bladeTone = context.createOscillator();
+    const bladeGain = context.createGain();
+    bladeTone.type = 'triangle';
+    bladeTone.frequency.setValueAtTime(1180 + weight * 90, now);
+    bladeTone.frequency.exponentialRampToValueAtTime(430, now + 0.105);
+    bladeGain.gain.setValueAtTime(0.0001, now);
+    bladeGain.gain.linearRampToValueAtTime(0.055, now + 0.008);
+    bladeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+    bladeTone.connect(bladeGain);
+    bladeGain.connect(destination);
+    bladeTone.start(now);
+    bladeTone.stop(now + 0.12);
     return;
   }
 
@@ -161,6 +175,9 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
   if (enemy.hitPoints > 1) {
     enemy.hitPoints--;
     const now = scene.time.now;
+    if (scene.currentLevel === 3 && enemy.enemyKind === 'stone-guardian') {
+      enemy.nextHealthRecoveryAt = now + 7000;
+    }
     enemy.stunnedUntil = now + (finisher ? 760 : 620);
     enemy.stunTintUntil = enemy.stunnedUntil;
     enemy.attackUntil = now;
@@ -183,6 +200,8 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
     scene.showFloatingText(head.x, head.y - 16, `${hitsLeft} HIT${hitsLeft === 1 ? '' : 'S'} LEFT`, '#ffe2a0');
     return;
   }
+  scene.recordLevel3GuardianDefeat?.(enemy);
+  scene.recordLevel6EnemyDefeat?.(enemy);
   if (swordStrike) {
     const knockback = Math.sign(enemy.x - scene.player.x) || -enemy.patrolDirection || 1;
     enemy.disableBody(true, false);
@@ -220,7 +239,7 @@ export function installCombat(scene) {
     ctx.fillStyle = '#c3c5a5'; ctx.fillRect(3, 2, 3, 2);
     texture.refresh();
   }
-  scene.physics.add.collider(scene.rockProjectiles, scene.groundLayer,
+  scene.physics.add.collider(scene.rockProjectiles, scene.collisionGround || scene.groundLayer,
     rock => retireRock(scene, rock), projectileCanCollide);
   scene.physics.add.overlap(scene.player, scene.rockProjectiles, (player, rock) => {
     if (!rock.active || rock.reflected || scene.isLevelFinished) return;
@@ -320,11 +339,8 @@ function meleeAttack(scene) {
       reflectRock(scene, rockTarget);
     }
     if (target?.active && target.body?.enable) {
-      if (target.isBoss) {
-        playSwordSound(scene, 'impact', combo === 3 ? 1 : 0);
-        damageBoss(scene, target);
-      }
-      else damageEnemy(scene, target, combo === 3, true);
+      if (target.isBoss) return;
+      damageEnemy(scene, target, combo === 3, true);
     }
   });
 }
@@ -400,10 +416,14 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
     const aheadX = body.center.x + enemy.patrolDirection * (body.width / 2 + 6);
     const ahead = Math.floor(aheadX / width);
     const wall = body.blocked.left || body.blocked.right ||
-      scene.groundLayer.getTileAt(ahead, row - 1)?.collides;
-    const gap = !scene.groundLayer.getTileAt(ahead, row)?.collides;
+      (!scene.level6Terrain && scene.groundLayer.getTileAt(ahead, row - 1)?.collides);
+    const gap = scene.level6Terrain
+      ? !scene.level6Terrain.hasSupport(aheadX, body.bottom)
+      : !scene.groundLayer.getTileAt(ahead, row)?.collides;
     if (body.left <= 2 || body.right >= scene.map.widthInPixels - 2) {
       enemy.patrolDirection = body.left <= 2 ? 1 : -1;
+    } else if (scene.level6Terrain) {
+      if (wall || gap) enemy.patrolDirection *= -1;
     } else if (now >= enemy.nextJump) {
       // Decide once per encounter; a skipped jump turns back instead of retrying every frame.
       if (wall || gap || Math.random() < 0.025) {
@@ -450,9 +470,14 @@ export function throwRock(scene, enemy) {
   rock.ownerEnemy = enemy;
   const distance = scene.player.body.center.x - rock.x;
   const flightTime = Math.max(0.25, Math.min(1.1, Math.abs(distance) / 210));
+  const level3Guardian = enemy.enemyKind === 'stone-guardian' && scene.currentLevel === 3;
+  const lead = level3Guardian ? 0.72 : 0;
+  const targetX = scene.player.body.center.x + scene.player.body.velocity.x * flightTime * lead;
+  const targetY = scene.player.body.center.y + (level3Guardian
+    ? scene.player.body.velocity.y * flightTime * 0.2 : 0);
   const gravity = scene.physics.world.gravity.y;
-  rock.setVelocity(distance / flightTime,
-    (scene.player.body.center.y - rock.y - 0.5 * gravity * flightTime * flightTime) / flightTime);
+  rock.setVelocity((targetX - rock.x) / flightTime,
+    (targetY - rock.y - 0.5 * gravity * flightTime * flightTime) / flightTime);
   rock.body.setSize(8, 8).setOffset(1, 1);
   scene.time.delayedCall(2500, () => retireRock(scene, rock));
   return rock;
@@ -483,6 +508,18 @@ export function updateCombat(scene) {
     if (!enemy.active || !enemy.body?.enable) return;
     if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }
     if (enemy.body.top > scene.map.heightInPixels + 36) { enemy.destroy(); return; }
+    if (scene.currentLevel === 3 && enemy.enemyKind === 'stone-guardian' &&
+        enemy.hitPoints < enemy.maxHitPoints && enemy.nextHealthRecoveryAt &&
+        now >= enemy.nextHealthRecoveryAt) {
+      enemy.hitPoints++;
+      enemy.nextHealthRecoveryAt = enemy.hitPoints < enemy.maxHitPoints ? now + 5500 : 0;
+      scene.showFloatingText(enemy.x, enemy.y - 30,
+        `RECOVERED ${enemy.hitPoints} / ${enemy.maxHitPoints}`, '#9fe8b1');
+      enemy.setTint(0x9fe8b1);
+      scene.time.delayedCall(420, () => {
+        if (enemy.active && !enemy.stunnedUntil) enemy.clearTint();
+      });
+    }
     if (now < (enemy.stunnedUntil || 0)) {
       enemy.setVelocityX(0);
       return;
@@ -529,10 +566,13 @@ export function updateCombat(scene) {
         });
         return;
       }
-      enemy.patrolDirection = Math.abs(dx) < 220 ? (dx >= 0 ? 1 : -1) : enemy.patrolDirection;
+      const pursuitRange = scene.currentLevel === 3 ? 420 : 220;
+      const pursuing = Math.abs(dx) < pursuitRange;
+      enemy.patrolDirection = pursuing ? (dx >= 0 ? 1 : -1) : enemy.patrolDirection;
       // Keep the giant guardian's jump timer active so it can pursue the player
       // across ledges instead of walking in place at a gap.
-      roamEnemy(scene, enemy, now, Math.abs(dx) < 220 ? scene.enemySpeed * 0.55 : scene.enemySpeed * 0.4);
+      const chaseMultiplier = scene.currentLevel === 3 ? 0.8 : 0.55;
+      roamEnemy(scene, enemy, now, pursuing ? scene.enemySpeed * chaseMultiplier : scene.enemySpeed * 0.4);
       return;
     }
     const customEnemy = enemy.texture.key === 'enemy-guardians';

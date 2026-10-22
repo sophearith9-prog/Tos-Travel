@@ -77,7 +77,7 @@ export function showStageClear(scene) {
     if (!isFinalStage) {
       scene.scene.start('GameScene', {
         level: scene.currentLevel + 1, score: scene.score,
-        coins: scene.coins, lives: scene.lives
+        coins: scene.coins, lives: scene.lives, shields: scene.shields
       });
     } else {
       scene.scene.start('VictoryScene', {

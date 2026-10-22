@@ -12,6 +12,9 @@ export class GameOverScene extends Phaser.Scene {
 
   preload() {
     if (!this.cache.audio.exists('lose')) this.load.audio('lose', 'assets/audio/lose.wav');
+    if (!this.textures.exists('nokor-adventure-logo')) {
+      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
+    }
     if (!this.textures.exists('character-skin-source')) {
       this.load.image('character-skin-source', 'assets/character-khmer.png');
     }
@@ -45,12 +48,13 @@ export class GameOverScene extends Phaser.Scene {
     }
     this.tweens.add({ targets: topTrim, alpha: 1, duration: 360, delay: 160 });
 
-    const eyebrow = label(this, 400, 72, `LEVEL ${this.failedLevel}  /  28`, 11, '#d5bd91').setAlpha(0);
-    const title = this.add.text(400, 107, 'GAME OVER', {
+    this.add.image(400, 75, 'nokor-adventure-logo').setDisplaySize(190, 95);
+    const eyebrow = label(this, 400, 128, `LEVEL ${this.failedLevel}  /  28`, 11, '#d5bd91').setAlpha(0);
+    const title = this.add.text(400, 158, 'GAME OVER', {
       fontFamily: 'Georgia, Trebuchet MS, serif', fontSize: '39px',
       fontStyle: 'bold', color: '#f3ca79', letterSpacing: 2
     }).setOrigin(0.5).setAlpha(0).setScale(0.88);
-    const message = label(this, 400, 146, 'The journey is not over. Rise and try again.', 15, '#c3d0dc').setAlpha(0);
+    const message = label(this, 400, 197, 'The journey is not over. Rise and try again.', 15, '#c3d0dc').setAlpha(0);
     [eyebrow, title, message].forEach((item, i) => this.tweens.add({
       targets: item, alpha: 1, scale: 1, duration: 380, delay: 180 + i * 90, ease: 'Sine.Out'
     }));
@@ -63,24 +67,24 @@ export class GameOverScene extends Phaser.Scene {
         frameRate: 2.5, repeat: -1
       });
     }
-    const halo = this.add.circle(400, 204, 37, 0xf1bd65, 0.12).setAlpha(0);
+    const halo = this.add.circle(400, 227, 37, 0xf1bd65, 0.12).setAlpha(0);
     this.tweens.add({ targets: halo, alpha: 0.34, scale: 1.18, duration: 720, yoyo: true, repeat: -1, delay: 360 });
-    const hero = this.add.sprite(400, 178, 'player-character', 15).setOrigin(0.5, 1)
+    const hero = this.add.sprite(400, 201, 'player-character', 15).setOrigin(0.5, 1)
       .setScale(0.56).setAlpha(0).setDepth(2);
-    this.tweens.add({ targets: hero, y: 211, alpha: 1, angle: -4, duration: 560, ease: 'Bounce.Out', delay: 240,
+    this.tweens.add({ targets: hero, y: 234, alpha: 1, angle: -4, duration: 560, ease: 'Bounce.Out', delay: 240,
       onComplete: () => { hero.setAngle(0); hero.play('gameover-crouch'); }
     });
 
     const stats = this.add.graphics().setAlpha(0);
-    stats.fillStyle(0x0c182b, 0.92).fillRoundedRect(164, 247, 218, 58, 10);
-    stats.fillStyle(0x0c182b, 0.92).fillRoundedRect(418, 247, 218, 58, 10);
-    stats.lineStyle(1, 0x3a506b, 0.9).strokeRoundedRect(164, 247, 218, 58, 10);
-    stats.strokeRoundedRect(418, 247, 218, 58, 10);
+    stats.fillStyle(0x0c182b, 0.92).fillRoundedRect(164, 267, 218, 58, 10);
+    stats.fillStyle(0x0c182b, 0.92).fillRoundedRect(418, 267, 218, 58, 10);
+    stats.lineStyle(1, 0x3a506b, 0.9).strokeRoundedRect(164, 267, 218, 58, 10);
+    stats.strokeRoundedRect(418, 267, 218, 58, 10);
     this.tweens.add({ targets: stats, alpha: 1, y: -2, duration: 420, delay: 420, ease: 'Back.Out' });
-    const scoreLabel = label(this, 273, 261, 'SCORE', 10, '#91a9bd').setAlpha(0);
-    const scoreValue = label(this, 273, 286, String(this.finalScore), 23, '#f0d393').setAlpha(0);
-    const coinLabel = label(this, 527, 261, 'COINS', 10, '#91a9bd').setAlpha(0);
-    const coinValue = label(this, 527, 286, String(this.finalCoins), 23, '#f0c674').setAlpha(0);
+    const scoreLabel = label(this, 273, 281, 'SCORE', 10, '#91a9bd').setAlpha(0);
+    const scoreValue = label(this, 273, 306, String(this.finalScore), 23, '#f0d393').setAlpha(0);
+    const coinLabel = label(this, 527, 281, 'COINS', 10, '#91a9bd').setAlpha(0);
+    const coinValue = label(this, 527, 306, String(this.finalCoins), 23, '#f0c674').setAlpha(0);
     [scoreLabel, scoreValue, coinLabel, coinValue].forEach(item => this.tweens.add({
       targets: item, alpha: 1, duration: 300, delay: 470
     }));
