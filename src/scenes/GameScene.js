@@ -57,6 +57,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    if (!this.textures.exists('nokor-adventure-logo')) {
+      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
+    }
     if (this.currentLevel <= 4) this.load.tilemapTiledJSON('level' + this.currentLevel, 'assets/level' + this.currentLevel + '.tmj');
 
     this.load.image('tiles', 'assets/tilemap_packed.png');

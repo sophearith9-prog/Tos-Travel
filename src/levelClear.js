@@ -20,38 +20,18 @@ export function showStageClear(scene) {
   root.add(card);
   scene.tweens.add({ targets: card, alpha: 1, y: 0, duration: 520, ease: 'Back.Out', delay: 80 });
 
-  const temple = scene.add.graphics();
-  temple.lineStyle(1, 0xc7a96e, 0.8).lineBetween(294, 105, 506, 105);
-  temple.lineStyle(1, 0xe0c17d, 0.95);
-  const tower = (x, base, height, width) => {
-    temple.strokeRect(x - width / 2, base - 8, width, 8);
-    for (let tier = 0; tier < 4; tier++) {
-      const tierWidth = width - tier * (width - 6) / 4;
-      const y = base - 8 - (tier + 1) * (height - 12) / 4;
-      temple.lineBetween(x - tierWidth / 2, y, x + tierWidth / 2, y);
-      temple.lineBetween(x - tierWidth / 2, y, x - tierWidth / 2 + 2, y + 3);
-      temple.lineBetween(x + tierWidth / 2, y, x + tierWidth / 2 - 2, y + 3);
-    }
-    temple.lineBetween(x, base - height, x, base - height - 7);
-    temple.fillStyle(0xe0c17d, 0.95)
-      .fillTriangle(x, base - height - 10, x - 3, base - height - 5, x + 3, base - height - 5);
-  };
-  tower(340, 98, 28, 18);
-  tower(370, 98, 36, 20);
-  tower(400, 98, 48, 24);
-  tower(430, 98, 36, 20);
-  tower(460, 98, 28, 18);
-  root.add(temple);
+  root.add(scene.add.image(400, 84, 'nokor-adventure-logo')
+    .setDisplaySize(170, 85));
 
   const isFinalStage = scene.currentLevel >= TOTAL_LEVELS;
-  const heading = scene.add.text(400, 133, `STAGE ${scene.currentLevel} CLEARED`, {
+  const heading = scene.add.text(400, 145, `STAGE ${scene.currentLevel} CLEARED`, {
     fontFamily: 'Georgia, Trebuchet MS, serif', fontSize: '27px',
     fontStyle: 'bold', color: '#f2ce83', letterSpacing: 1
   }).setOrigin(0.5).setAlpha(0).setScale(0.92);
   const nextName = isFinalStage
     ? 'You completed the entire Cambodia journey!'
     : LEVEL_CONFIGS[scene.currentLevel + 1]?.title || 'Your next Cambodia adventure awaits.';
-  const subtitle = scene.add.text(400, 164, nextName, {
+  const subtitle = scene.add.text(400, 174, nextName, {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
     color: '#b9c9d8', align: 'center', wordWrap: { width: 450 }
   }).setOrigin(0.5).setAlpha(0);
