@@ -3,6 +3,7 @@ import { LEVEL6 } from './level6Layout.js';
 import { LEVEL7 } from './level7Layout.js';
 import { LEVEL8 } from './level8Layout.js';
 import { LEVEL9 } from './level9Layout.js';
+import { PROVINCE_ENVIRONMENTS } from '../biomes/biomeConfig.js';
 
 export function createProvinceLevel(province, index) {
   const width = province.id === 'oddar-meanchey' ? 45
@@ -45,8 +46,11 @@ export function createProvinceLevel(province, index) {
     coins.splice(0, coins.length, ...LEVEL9.coins);
     enemies.splice(0, enemies.length, ...LEVEL9.enemies);
   }
+  // `environment` (biome, time of day, weather, landmark) drives the scenery of stages 10-28;
+  // it is purely visual. See src/biomes/biomeConfig.js.
   return { title: province.name, province, width, skyColor: province.sky,
-    enemySpeed: 40 + Math.min(15, Math.floor(index / 4) * 3), coins, enemies };
+    enemySpeed: 40 + Math.min(15, Math.floor(index / 4) * 3), coins, enemies,
+    environment: PROVINCE_ENVIRONMENTS[province.id] || null };
 }
 
 export function createProvinceMap(level) {

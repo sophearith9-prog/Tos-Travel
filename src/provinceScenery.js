@@ -1,6 +1,8 @@
 import { addScrollingBackdrop } from './scrollingBackdrop.js';
 import { addLevel8SanctumBackdrop } from './level8Sanctum.js';
 import { addLevel9CraterBackdrop } from './level9Highlands.js';
+import { BIOMES, PROVINCE_ENVIRONMENTS, mix } from './biomes/biomeConfig.js';
+import { addBiomeScenery } from './biomes/biomeScenery.js';
 
 export function prepareProvinceTerrain(scene, province) {
   const key = `province-terrain-${province.id}`;
@@ -13,6 +15,11 @@ export function prepareProvinceTerrain(scene, province) {
   const stone = ['palace-night','cliff-temple','brick-temple','angkor','forest-temple','temple-lake'].includes(province.theme);
   const forestTemple = province.id === 'oddar-meanchey';
   const banteay = province.id === 'banteay-meanchey';
+  const env = PROVINCE_ENVIRONMENTS[province.id];
+  if (env) {
+    paintBiomeTerrain(ctx, BIOMES[env.biome], env.biome);
+    texture.refresh(); texture.setFilter(Phaser.Textures.FilterMode.NEAREST); return key;
+  }
   for (const id of [1,2,3,21,22,23]) {
     const x = (id-1)%20*18, y = Math.floor((id-1)/20)*18;
     ctx.save();ctx.beginPath();ctx.rect(x,y,18,18);ctx.clip();
@@ -360,7 +367,12 @@ export function prepareProvinceSceneryTexture(scene, province) {
   return key;
 }
 
-export function addProvinceScenery(scene, province) {
+export function addProvinceScenery(scene, province, environment = null) {
+  if (environment) {
+    addBiomeScenery(scene, environment);
+    showProvinceCaption(scene, province);
+    return;
+  }
   if (province.id === 'stung-treng') {
     addLevel8SanctumBackdrop(scene);
     return;
@@ -393,12 +405,45 @@ export function addProvinceScenery(scene, province) {
   }
   else scene.add.image(400,225,key).setDisplaySize(800/zoom,450/zoom).setScrollFactor(0).setDepth(-20);
   if (province.id === 'siem-reap' && !wideAngkor) addLevel4AtlasLandmarks(scene);
-  if (scene.currentLevel !== 5 && scene.currentLevel !== 6) {
+  if (scene.currentLevel !== 5 && scene.currentLevel !== 6) showProvinceCaption(scene, province);
+}
+
+function showProvinceCaption(scene, province) {
   const caption = scene.screenText(400,128,`${province.khmer} · ${province.places}`,{
     fontFamily:'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif',fontSize:'12px',color:'#fff2cd',
     stroke:'#17271f',strokeThickness:3,align:'center'
   }).setOrigin(0.5).setDepth(200);
   scene.tweens.add({targets:caption,alpha:0,delay:2500,duration:600});
+}
+
+// Biome ground for the generated stages: recolours the same six tiles (grass tops 1-3,
+// fill 21-23), so tile shapes and collisions are unchanged. Pixel style, nearest filter.
+function paintBiomeTerrain(ctx, c, biome) {
+  const style = {
+    coast: { fill: c.sand, block: mix(c.sand, '#ffffff', 0.25), seam: mix(c.sand, c.stoneDark, 0.35), top: mix(c.sand, '#ffffff', 0.4), tuft: c.grass },
+    city: { fill: c.stoneDark, block: c.stone, seam: mix(c.stoneDark, '#000000', 0.25), top: c.stoneLight, tuft: c.stoneDark },
+    'temple-jungle': { fill: c.stoneDark, block: c.stone, seam: mix(c.stoneDark, '#000000', 0.2), top: c.grass, tuft: c.mid },
+    'highland-forest': { fill: c.ground, block: mix(c.ground, '#ffb080', 0.18), seam: mix(c.ground, '#000000', 0.25), top: c.grass, tuft: c.mid }
+  }[biome] || { fill: c.ground, block: mix(c.ground, '#ffe0a8', 0.22), seam: mix(c.ground, '#000000', 0.22), top: c.grass, tuft: c.mid };
+  for (const id of [1, 2, 3, 21, 22, 23]) {
+    const x = (id - 1) % 20 * 18, y = Math.floor((id - 1) / 20) * 18;
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, 18, 18); ctx.clip();
+    ctx.fillStyle = style.seam; ctx.fillRect(x, y, 18, 18);
+    // Offset blocks (brick / laterite / paving) with a light top edge on each block.
+    for (let row = 0; row < 3; row++) {
+      for (let col = -1; col < 3; col++) {
+        const bx = x + col * 8 + (row % 2) * 4, by = y + row * 6;
+        ctx.fillStyle = style.fill; ctx.fillRect(bx + 1, by + 1, 7, 5);
+        ctx.fillStyle = style.block; ctx.fillRect(bx + 1, by + 1, 7, 1);
+      }
+    }
+    if (id <= 3) {
+      ctx.fillStyle = style.top; ctx.fillRect(x, y, 18, 4);
+      ctx.fillStyle = style.tuft;
+      for (let n = 0; n < 6; n++) ctx.fillRect(x + n * 3, y + 4, 2, 1 + (n % 2));
+      ctx.fillStyle = mix(style.top, '#ffffff', 0.35); ctx.fillRect(x, y, 18, 1);
+    }
+    ctx.restore();
   }
 }
 

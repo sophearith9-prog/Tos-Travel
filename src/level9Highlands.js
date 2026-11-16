@@ -1,5 +1,6 @@
 import { LEVEL9 } from './levels/level9Layout.js';
 import { touchControls } from './mobileControls.js';
+import { bakeGraphics } from './bakeGraphics.js';
 
 function makeLevel9Textures(scene) {
   if (!scene.textures.exists('level9-laterite')) {
@@ -61,6 +62,10 @@ export function addLevel9CraterBackdrop(scene) {
     lakeMist.fillStyle(0xd9f2df, 0.12).fillEllipse(x, y, 300, 24);
     lakeMist.fillStyle(0xffffff, 0.09).fillEllipse(x + 45, y - 8, 160, 18);
   }
+  // Static soft ellipses: bake them so they are not re-triangulated every frame.
+  const mistWidth = scene.map.widthInPixels + 640;
+  bakeGraphics(scene, farMist, 'level9-far-mist', { x: -220, y: 470, width: mistWidth, height: 160 });
+  bakeGraphics(scene, lakeMist, 'level9-lake-mist', { x: -100, y: 785, width: mistWidth, height: 80 });
   const title = scene.screenText(400, 126, 'RATANAKIRI - YEAK LAOM CRATER LAKE', {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '14px',
     fontStyle: 'bold', color: '#fff0c0', stroke: '#25352b', strokeThickness: 4
@@ -182,7 +187,10 @@ export function installLevel9Terrain(scene) {
   // Swinging vine ropes use a pendulum endpoint and visible leafy ties.
   for (const spec of LEVEL9.swingingVines) {
     const art = scene.add.graphics().setDepth(2);
-    state.vines.push({ spec, art, angle: 0, endX: spec.x, endY: spec.y + spec.length });
+    // Leaf tufts as Ellipse shapes (triangulated once) that follow the swinging rope end.
+    const leaf = scene.add.ellipse(spec.x, spec.y + spec.length, 13, 7, 0x7c9a51, 1).setDepth(2);
+    const leafTip = scene.add.ellipse(spec.x, spec.y + spec.length, 7, 4, 0xb0be6d, 0.9).setDepth(2);
+    state.vines.push({ spec, art, leaf, leafTip, angle: 0, endX: spec.x, endY: spec.y + spec.length });
   }
 
   // Waterfall wall is intentionally non-solid; the lower shelf is the hidden cave.
@@ -303,7 +311,9 @@ export function updateLevel9Highlands(scene, delta) {
   const state = scene.level9Highlands;
   if (!state || scene.currentLevel !== 9) return false;
   const now = scene.time.now;
-  const jumpDown = Boolean(touchControls.jump || scene.cursors?.up.isDown || scene.wasd?.up.isDown);
+  // Match GameScene's jump keys; SPACE was missing, so space-jumpers could not grab or leave vines.
+  const jumpDown = Boolean(touchControls.jump || scene.cursors?.up.isDown ||
+    scene.wasd?.up.isDown || scene.wasd?.space.isDown);
   const jumpPressed = jumpDown && !state.wasJumpDown;
   state.wasJumpDown = jumpDown;
 
@@ -313,8 +323,8 @@ export function updateLevel9Highlands(scene, delta) {
     vine.endY = vine.spec.y + Math.cos(vine.angle) * vine.spec.length;
     vine.art.clear().lineStyle(4, 0x345d3d, 0.98).beginPath()
       .moveTo(vine.spec.x, vine.spec.y).lineTo(vine.endX, vine.endY).strokePath();
-    vine.art.fillStyle(0x7c9a51, 1).fillEllipse(vine.endX, vine.endY, 13, 7);
-    vine.art.fillStyle(0xb0be6d, 0.9).fillEllipse(vine.endX - 5, vine.endY + 2, 7, 4);
+    vine.leaf.setPosition(vine.endX, vine.endY);
+    vine.leafTip.setPosition(vine.endX - 5, vine.endY + 2);
   }
 
   if (state.grabbedVine) {
@@ -353,9 +363,11 @@ export function updateLevel9Highlands(scene, delta) {
     const ratio = Phaser.Math.Clamp(state.boss.hitPoints / state.boss.maxHitPoints, 0, 1);
     state.bossName.setPosition(state.boss.x, state.boss.y - 92)
       .setText(`CRATER WARDEN  ${state.boss.hitPoints}/${state.boss.maxHitPoints}`);
+    // Plain rects: a 3px-tall rounded rect with radius 2 is a degenerate shape that cost
+    // ~3.5ms of triangulation every frame.
     state.bossBar.clear().fillStyle(0x201b19, 1)
-      .fillRoundedRect(state.boss.x - 38, state.boss.y - 79, 76, 7, 3)
-      .fillStyle(0xd24d41, 1).fillRoundedRect(state.boss.x - 36, state.boss.y - 77, 72 * ratio, 3, 2);
+      .fillRect(state.boss.x - 38, state.boss.y - 79, 76, 7)
+      .fillStyle(0xd24d41, 1).fillRect(state.boss.x - 36, state.boss.y - 77, 72 * ratio, 3);
   }
   state.waterfall.setAlpha(0.7 + Math.sin(now * 0.004) * 0.12);
   return Boolean(state.grabbedVine);

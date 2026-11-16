@@ -1,10 +1,31 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1423">
   <title>NOKOR ADVENTURE | The Little Arcade</title>
+  <meta name="description" content="Nokor Adventure – a 28-stage pixel platformer journey across Cambodia's 24 provinces and the capital. Play free in your browser.">
+  <link rel="canonical" href="https://tos-travel.vercel.app/">
+  <!-- Sharing previews (Open Graph / Twitter). Image URLs must be absolute. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Little Arcade">
+  <meta property="og:title" content="Nokor Adventure – a pixel platformer across Cambodia">
+  <meta property="og:description" content="A 28-stage pixel platformer journey across Cambodia's 24 provinces and the capital. Play free in your browser.">
+  <meta property="og:url" content="https://tos-travel.vercel.app/">
+  <meta property="og:image" content="https://tos-travel.vercel.app/assets/title-temple-sunset.png">
+  <meta property="og:image:width" content="1672">
+  <meta property="og:image:height" content="941">
+  <meta property="og:image:alt" content="Nokor Adventure title screen: an Angkor-style temple at sunset">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Nokor Adventure – a pixel platformer across Cambodia">
+  <meta name="twitter:description" content="A 28-stage pixel platformer journey across Cambodia's 24 provinces and the capital. Play free in your browser.">
+  <meta name="twitter:image" content="https://tos-travel.vercel.app/assets/title-temple-sunset.png">
+  <meta name="twitter:image:alt" content="Nokor Adventure title screen: an Angkor-style temple at sunset">
+  <!-- Icons: the golden "N" from assets/nokor-adventure-logo.png. -->
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <script src="./phaser.min.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -15,13 +36,19 @@
     .mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: #ffcf70; color: #142238; font-size: 21px; box-shadow: 0 4px 20px #ffcf701a; }
     .edition { color: #8ba4b8; font-size: 11px; letter-spacing: 1.5px; }
     .intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
-    .eyebrow { color: #87d7ca; font-size: 10px; font-weight: bold; letter-spacing: 2px; margin: 0 0 10px; }
+    /* Layout-shift guards: every block above the game reserves its final size before
+       images, scripts or device detection finish, so the canvas never moves after first paint. */
+    .eyebrow { color: #87d7ca; font-size: 10px; font-weight: bold; letter-spacing: 2px; margin: 0 0 10px; line-height: 14px; min-height: 14px; }
     h1 { margin: 0; line-height: 0; }
-    h1 img { display: block; width: min(330px, 78vw); height: auto; image-rendering: auto; filter: drop-shadow(0 4px 0 #160e10); }
+    h1 img { display: block; width: min(330px, 78vw); height: auto; aspect-ratio: 1774 / 887; image-rendering: auto; filter: drop-shadow(0 4px 0 #160e10); }
     .subtitle { color: #93a9bf; margin: 10px 0 0; font-size: 14px; }
     .badge { flex-shrink: 0; border: 1px solid #365248; border-radius: 20px; padding: 9px 13px; color: #9ee1c3; background: #17352d80; font-size: 11px; }
     .badge::before { content: ''; display: inline-block; width: 6px; height: 6px; background: #8bddac; border-radius: 50%; margin-right: 8px; }
     .machine { padding: 10px; border: 1px solid #3a4d62; border-radius: 23px; background: linear-gradient(140deg, #304359, #142237 55%); box-shadow: 0 28px 70px #0007, inset 0 1px #ffffff15; }
+    /* Touch controls live in .machine (outside the clipped canvas frame) so phones in
+       portrait can show them below the canvas; src/mobileControls.js positions them. */
+    .machine { position: relative; }
+    @media (orientation: portrait) { .is-mobile-device .machine:not(.is-fullscreen) { padding-bottom: 76px; } }
     #game-container { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; background: #0c182b; }
     #game-container canvas { display: block; }
     .touch-controls { display: none; position: absolute; z-index: 2; left: var(--controls-left, 0px); top: var(--controls-top, 0px); width: var(--controls-width, 100%); height: var(--controls-height, 76px); align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; pointer-events: none; user-select: none; -webkit-user-select: none; }
@@ -60,6 +87,8 @@
     .game-toolbar button[aria-pressed="false"] { color: #9aafc4; background: #17283d; }
     .game-toolbar button:focus-visible { outline: 3px solid #ffcf70; outline-offset: 2px; }
     .game-fullscreen-button { position: absolute; z-index: 5; width: 42px; height: 42px; padding: 0; border: 1px solid #658292; border-bottom-width: 3px; border-radius: 12px; background: #243d50e8; color: #eef3fa; font: bold 22px 'Trebuchet MS', sans-serif; cursor: pointer; touch-action: manipulation; transform: translate(-50%, -50%); }
+    /* Hidden until src/fullscreen.js has placed it over the canvas (and while menus are open). */
+    .game-fullscreen-button:not(.is-placed), .game-fullscreen-button.is-overlay-hidden { visibility: hidden; }
     .game-fullscreen-button:hover { background: #2e4b61; border-color: #87d7ca; }
     .game-fullscreen-button:focus-visible { outline: 3px solid #ffcf70; outline-offset: 2px; }
     .is-mobile-device .game-fullscreen-button { display: none; }
@@ -71,14 +100,28 @@
   </style>
 </head>
 <body>
+  <script>
+    // Apply the mobile layout before first paint (src/mobileControls.js re-checks later with
+    // the same test) so mobile-only text does not pop in and shift the page.
+    (function () {
+      var touch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window || matchMedia('(pointer: coarse)').matches;
+      var mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+        || (navigator.userAgentData && navigator.userAgentData.mobile === true)
+        || (touch && matchMedia('(max-width: 1024px)').matches);
+      if (mobile) document.body.classList.add('is-mobile-device');
+    })();
+  </script>
   <main class="arcade">
     <header><div class="brand"><span class="mark" aria-hidden="true">+</span> THE LITTLE ARCADE</div><span class="edition">SMALL GAMES. BIG ADVENTURES.</span></header>
     <section class="intro" aria-label="About the game">
-      <div><p class="eyebrow">PLATFORMER / 28 LEVELS / CAMBODIA JOURNEY</p><h1><img src="assets/nokor-adventure-logo.png" alt="Nokor Adventure"></h1><p class="subtitle">Ancient temples. Coastlines. Forests. Explore Cambodia.</p></div>
+      <div><p class="eyebrow">PLATFORMER / 28 LEVELS / CAMBODIA JOURNEY</p><h1><img src="assets/nokor-adventure-logo.png" alt="Nokor Adventure" width="1774" height="887" fetchpriority="high"></h1><p class="subtitle">Ancient temples. Coastlines. Forests. Explore Cambodia.</p></div>
       <span class="badge">Ready to play</span>
     </section>
     <div class="machine">
-      <div id="game-container" role="region" aria-label="នគរ ADVENTURE game. Use the touch buttons, arrows or WASD to move, Space to jump, and E to swing the Khmer sword.">
+      <div id="game-container" role="region" aria-label="នគរ ADVENTURE game. Use the touch buttons, arrows or WASD to move, Space to jump, Shift to sprint, and E to swing the Khmer sword.">
+      <button type="button" id="fullscreen-button" class="game-fullscreen-button" aria-label="Enter fullscreen" title="Enter fullscreen" aria-pressed="false">⛶</button>
+      </div>
       <div class="touch-controls" role="group" aria-label="Touch game controls">
         <div class="touch-move">
           <button type="button" data-action="left" aria-label="Move left" disabled>&larr;</button>
@@ -90,11 +133,9 @@
           <button type="button" class="touch-jump" data-action="jump" aria-label="Jump" disabled>JUMP</button>
         </div>
       </div>
-      <button type="button" id="fullscreen-button" class="game-fullscreen-button" aria-label="Enter fullscreen" title="Enter fullscreen" aria-pressed="false">⛶</button>
-      </div>
     </div>
     <section class="guide" aria-label="Controls and objective">
-      <div class="keys"><kbd>W A S D</kbd><span>or</span><kbd>&larr; &uarr; &rarr;</kbd><span>Move</span><kbd>SPACE</kbd><span>Jump</span><kbd>CLICK / E</kbd><span>Sword</span></div>
+      <div class="keys"><kbd>W A S D</kbd><span>or</span><kbd>&larr; &uarr; &rarr;</kbd><span>Move</span><kbd>SPACE</kbd><span>Jump</span><kbd>SHIFT</kbd><span>Sprint</span><kbd>CLICK / E</kbd><span>Sword</span></div>
       <p class="touch-tip">Click or tap SWORD once per move; tap in rhythm to combo or deflect rocks back. Reflected rocks are the only way to hurt the final guardian. Tap JUMP again in the air for a double jump.</p>
       <p class="tip">Follow the coins. <strong>Reach the golden flag.</strong><br>Explore 24 provinces and the capital. Complete all 28 stages.</p>
     </section>

@@ -1,5 +1,7 @@
 import { label, button, playSound } from '../ui.js';
 import { audioSettings, onAudioSettingsChange } from '../audioSettings.js';
+import { bakeGraphics } from '../bakeGraphics.js';
+import { addPitMarkers } from '../pitMarkers.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
@@ -63,6 +65,33 @@ export class GameScene extends Phaser.Scene {
     this.isEnteringCastle = false;
     this.sprintKey = null;
     this.templeEntrance = null;
+    // Phaser reuses this scene object for every stage, so state that level modules
+    // attach to it must be cleared here. Stale Level 8/9 state crashed Level 10, and a
+    // stale shop could leave the player invulnerable on later stages.
+    this.level6Shop = null;
+    this.level8Sanctum = null;
+    this.level8Shop = null;
+    this.level8Checkpoint = null;
+    this.level9Highlands = null;
+    this.recordLevel8BossDefeat = null;
+    this.recordLevel9BossDefeat = null;
+    this.templeSwitchActivated = false;
+    this.templeSwitch = null;
+    this.templePortal = null;
+    this.boss = null;
+    this.nextBossWarning = 0;
+    this.speedBoostUntil = 0;
+    this.hitStopUntil = 0;
+    this.meleeAnimationUntil = 0;
+    this.meleeAnimationStartedAt = 0;
+    // Leaving Level 1 during the boat intro would otherwise freeze the next stage.
+    this.levelOneArrival = false;
+    this.levelOneArrivalJump = false;
+    this.wasPlayerAirborne = false;
+    this.landingAnimationUntil = 0;
+    this.nextRunGlintAt = 0;
+    this.vitalBarsSignature = null;
+    this.stageClearOpen = false;
   }
 
   preload() {
@@ -262,6 +291,9 @@ export class GameScene extends Phaser.Scene {
       : this.physics.add.sprite(startX, startY, 'packed', 24);
     this.jumpsUsed = 0;
     this.jumpInputDown = false;
+    // Pit-fall respawn falls back to the stage start until the player has stood somewhere safe.
+    this.spawnPoint = { x: startX, y: startY };
+    this.lastSafeGround = null;
     this.player.setCollideWorldBounds(true);
     this.player.setBounce(0);
     if (customPlayer) {
@@ -405,7 +437,9 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setZoom(this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
     if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
     if (this.currentLevel === 2) installLevelTwoTrial(this);
-    if (config.province) addProvinceScenery(this, config.province);
+    if (config.province) addProvinceScenery(this, config.province, config.environment);
+    // After the zoom is set so the baked pit art renders sharp.
+    addPitMarkers(this);
     this.level6Water = this.currentLevel === 6 ? addLevel6WaterfallEffects(this) : null;
     if (config.province?.id === 'banteay-meanchey') this.templeEntrance = addTempleEntrance(this);
     if (this.currentLevel === 3) addScrollingBackdrop(this, 'angkor-sunset-level3', -20, 0.18, true);
@@ -861,9 +895,20 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  screenText(x, y, message, style) {
+  // Screen-space hint/HUD text. Readability defaults keep it legible on every backdrop,
+  // including pale skies (e.g. Level 28): a clean font, a thick dark outline and a
+  // translucent dark panel. Styles passed in still win.
+  screenText(x, y, message, style = {}) {
     const zoom = this.cameras.main.zoom;
-    return this.add.text(400 + (x - 400) / zoom, 225 + (y - 225) / zoom, message, style)
+    const readable = {
+      fontFamily: 'Trebuchet MS, Arial, sans-serif',
+      backgroundColor: 'rgba(8, 12, 20, 0.55)',
+      padding: { left: 6, right: 6, top: 3, bottom: 3 },
+      ...style,
+      stroke: style.stroke || '#0b0f16',
+      strokeThickness: Math.max(4, style.strokeThickness || 0)
+    };
+    return this.add.text(400 + (x - 400) / zoom, 225 + (y - 225) / zoom, message, readable)
       .setScale(1 / zoom).setScrollFactor(0);
   }
 
@@ -891,7 +936,9 @@ export class GameScene extends Phaser.Scene {
     plaque(427, 5, 169, 42);
     plaque(603, 5, 145, 42, 0xd5a446);
     plaque(752, 7, 41, 41, 0xd5a446);
-    this.hudContainer.addAt(hudFrame, 0);
+    // The frame never changes: bake it so its rounded rects are not re-triangulated every frame.
+    this.hudContainer.addAt(bakeGraphics(this, hudFrame, 'hud-frame',
+      { x: 0, y: 0, width: 800, height: 64 }), 0);
 
     this.vitalBars = this.add.graphics();
     this.bloodLabel = hudText(17, 14, 'HEALTH', 8, '#ffdca0');
@@ -918,7 +965,8 @@ export class GameScene extends Phaser.Scene {
       fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '20px',
       fontStyle: 'bold', color: '#f4f1df'
     }).setOrigin(0.5);
-    pauseIcon.add([pausePlate, pauseMark]);
+    pauseIcon.add([...bakeGraphics(this, pausePlate, 'hud-pause-plate',
+      { x: -22, y: -22, width: 44, height: 44 }), pauseMark]);
     pauseIcon.setSize(48, 48).setInteractive({ useHandCursor: true });
     pauseIcon.on('pointerover', () => pauseIcon.setScale(1.1));
     pauseIcon.on('pointerout', () => pauseIcon.setScale(1));
@@ -933,11 +981,11 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 6) {
       this.level6ObjectiveText = this.add.text(14, 64, 'DEFEAT 5 ENEMIES: 0/5', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#fff2cd',
-        stroke: '#17271f', strokeThickness: 3
+        stroke: '#0b0f16', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
       });
       const routeHint = this.add.text(14, 79, '↓ / S: descend    •    Jump to climb', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#fff2cd',
-        stroke: '#17271f', strokeThickness: 3
+        stroke: '#0b0f16', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
       });
       this.hudContainer.add([this.level6ObjectiveText, routeHint]);
     }
@@ -946,7 +994,7 @@ export class GameScene extends Phaser.Scene {
       this.level3ObjectiveText = this.add.text(31, 68, 'Defeat Stone Guardian', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '11px',
         fontStyle: 'bold', color: '#fff0bc',
-        stroke: '#100905', strokeThickness: 3
+        stroke: '#100905', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
       }).setOrigin(0, 0.5);
       this.hudContainer.add([this.level3ObjectiveCheck, this.level3ObjectiveText]);
       this.drawLevel3ObjectiveCheck();
@@ -959,6 +1007,13 @@ export class GameScene extends Phaser.Scene {
     this.extraLivesText?.setText(this.lives > 3 ? '+' + (this.lives - 3) : '');
     const g = this.vitalBars;
     if (!g) return;
+    // update() calls this every frame; only rebuild the shapes when a value changed.
+    const now = this.time?.now || 0;
+    const recharge = this.shields >= 3 ? 1 : (this.nextShieldRecoveryAt > now
+      ? 1 - (this.nextShieldRecoveryAt - now) / 8000 : 0);
+    const signature = `${this.health}|${this.shields}|${Math.round(recharge * 166)}`;
+    if (signature === this.vitalBarsSignature) return;
+    this.vitalBarsSignature = signature;
     g.clear();
     const drawBar = (y, ratio, color, highlight) => {
       const x = 57, width = 174, height = 13;
@@ -1001,9 +1056,6 @@ export class GameScene extends Phaser.Scene {
         g.fillStyle(0xffa1a5, 1).fillRect(cx - 5, cy - 3, 2, 2);
       }
     };
-    const now = this.time?.now || 0;
-    const recharge = this.shields >= 3 ? 1 : (this.nextShieldRecoveryAt > now
-      ? 1 - (this.nextShieldRecoveryAt - now) / 8000 : 0);
     drawMedallion(59, 15, false);
     drawMedallion(59, 37, true);
     drawBar(7, this.health / this.maxHealth, 0xc73854, 0xff8091);
@@ -1313,7 +1365,7 @@ export class GameScene extends Phaser.Scene {
       color: color,
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 2
+      strokeThickness: 3
     }).setOrigin(0.5);
 
     this.tweens.add({
@@ -1393,11 +1445,7 @@ export class GameScene extends Phaser.Scene {
         this.shields--;
         this.nextShieldRecoveryAt = this.shields < 3 ? this.time.now + 8000 : 0;
       } else {
-        if (this.lives > 3) this.lives--;
-        else {
-          this.health = Math.max(0, this.health - 50);
-          this.lives = Math.ceil(this.health / 50);
-        }
+        this.loseHealthUnit();
         if (!this.nextShieldRecoveryAt) this.nextShieldRecoveryAt = this.time.now + 8000;
       }
       this.updateHUD();
@@ -1406,23 +1454,77 @@ export class GameScene extends Phaser.Scene {
         if (this.respawnAtLevel8Checkpoint()) return;
         this.endRun();
       } else {
-        this.isInvulnerable = true;
         player.setVelocityY(-180);
         player.setVelocityX(player.x < enemy.x ? -120 : 120);
-
-        this.tweens.add({
-          targets: player,
-          alpha: 0.2,
-          duration: 100,
-          yoyo: true,
-          repeat: 6,
-          onComplete: () => {
-            player.setAlpha(1);
-            this.isInvulnerable = false;
-          }
-        });
+        this.startInvulnerabilityBlink();
       }
     }
+  }
+
+  // One "unit" of damage: a bonus life if the player has one, otherwise 50 health.
+  loseHealthUnit() {
+    if (this.lives > 3) this.lives--;
+    else {
+      this.health = Math.max(0, this.health - 50);
+      this.lives = Math.ceil(this.health / 50);
+    }
+  }
+
+  startInvulnerabilityBlink() {
+    const player = this.player;
+    this.isInvulnerable = true;
+    this.tweens.killTweensOf(player);
+    this.tweens.add({
+      targets: player,
+      alpha: 0.2,
+      duration: 100,
+      yoyo: true,
+      repeat: 6,
+      onComplete: () => {
+        player.setAlpha(1);
+        this.isInvulnerable = false;
+      }
+    });
+  }
+
+  // True when both feet rest on real level ground (not a pit floor, moving/sinking
+  // platform, trigger zone or the world's bottom edge), so it is safe to respawn here.
+  isOnSafeGround() {
+    const body = this.player.body;
+    if (!body.blocked.down || body.bottom >= this.map.heightInPixels - 2) return false;
+    const y = body.bottom + 2;
+    const feet = [body.left + 2, body.right - 2];
+    if (this.collisionGround === this.groundLayer) {
+      return feet.every(x => this.groundLayer.getTileAtWorldXY(x, y)?.collides);
+    }
+    return feet.every(x => this.physics.overlapRect(x, y, 1, 2, false, true)
+      .some(hit => hit.gameObject && this.collisionGround.contains(hit.gameObject)));
+  }
+
+  // Falling into a pit costs one unit of health and returns the player to the last safe
+  // ground they stood on; it only ends the run when that empties their health.
+  handlePitFall() {
+    if (this.isRunOver || this.isLevelFinished) return;
+    playSound(this, 'stomp', { volume: 0.72, rate: 0.9 });
+    this.comboCount = 0;
+    this.comboExpiresAt = 0;
+    this.loseHealthUnit();
+    this.updateHUD();
+    if (this.lives <= 0 || this.health <= 0) {
+      if (!this.respawnAtLevel8Checkpoint()) this.endRun();
+      return;
+    }
+    const spot = this.lastSafeGround || this.spawnPoint;
+    const player = this.player;
+    player.body.reset(spot.x, spot.y);
+    player.setVelocity(0, 0).setFlipX(false);
+    player.body.setAllowGravity(true);
+    player.setData('level8Climbing', false);
+    this.jumpsUsed = 0;
+    this.wasPlayerAirborne = false;
+    this.cameras.main.shake(140, 0.006);
+    this.showFloatingText(spot.x, spot.y - 26, '-1 HEALTH', '#ff9aa5');
+    this.startInvulnerabilityBlink();
   }
 
   // Complete Finish Cutscene Sequence
@@ -1726,10 +1828,15 @@ export class GameScene extends Phaser.Scene {
       if (!this.isInvulnerable) this.player.setAlpha(1);
     }
 
+    // Remember the last solid footing so a pit fall can return the player there.
+    if (grounded && this.isOnSafeGround()) {
+      this.lastSafeGround = { x: this.player.x, y: this.player.y };
+    }
+
     // Pit fall detection. Hand-built tall levels (6-9) fall off their own map height;
     // Level 9 spawns at y=1068, so the classic 280px limit ended the run instantly.
     const fallLimit = this.currentLevel >= 6 && this.currentLevel <= 9
       ? this.map.heightInPixels + 30 : 280;
-    if (this.player.y > fallLimit && !this.respawnAtLevel8Checkpoint()) this.endRun();
+    if (this.player.y > fallLimit) this.handlePitFall();
   }
 }

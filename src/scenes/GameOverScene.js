@@ -1,5 +1,6 @@
 import { backdrop, button, label, playSound } from '../ui.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
+import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 
 export class GameOverScene extends Phaser.Scene {
   constructor() { super('GameOverScene'); }
@@ -8,6 +9,8 @@ export class GameOverScene extends Phaser.Scene {
     this.finalScore = data.score || 0;
     this.finalCoins = data.coins || 0;
     this.failedLevel = data.level || 1;
+    this.retryScore = data.retryScore ?? this.finalScore;
+    this.retryCoins = data.retryCoins ?? this.finalCoins;
   }
 
   preload() {
@@ -49,7 +52,7 @@ export class GameOverScene extends Phaser.Scene {
     this.tweens.add({ targets: topTrim, alpha: 1, duration: 360, delay: 160 });
 
     this.add.image(400, 75, 'nokor-adventure-logo').setDisplaySize(190, 95);
-    const eyebrow = label(this, 400, 128, `LEVEL ${this.failedLevel}  /  28`, 11, '#d5bd91').setAlpha(0);
+    const eyebrow = label(this, 400, 128, `LEVEL ${this.failedLevel}  /  ${TOTAL_LEVELS}`, 11, '#d5bd91').setAlpha(0);
     const title = this.add.text(400, 158, 'GAME OVER', {
       fontFamily: 'Georgia, Trebuchet MS, serif', fontSize: '39px',
       fontStyle: 'bold', color: '#f3ca79', letterSpacing: 2
@@ -67,11 +70,14 @@ export class GameOverScene extends Phaser.Scene {
         frameRate: 2.5, repeat: -1
       });
     }
-    const halo = this.add.circle(400, 227, 37, 0xf1bd65, 0.12).setAlpha(0);
-    this.tweens.add({ targets: halo, alpha: 0.34, scale: 1.18, duration: 720, yoyo: true, repeat: -1, delay: 360 });
-    const hero = this.add.sprite(400, 201, 'player-character', 15).setOrigin(0.5, 1)
+    // The hero lands in the gap between the message (y≈205) and the score boxes (y≈265);
+    // it used to sit on top of the message text.
+    const halo = this.add.circle(400, 240, 28, 0xf1bd65, 0.12).setAlpha(0).setDepth(1);
+    this.tweens.add({ targets: halo, alpha: 0.34, scale: 1.12, duration: 720, yoyo: true, repeat: -1, delay: 360 });
+    const hero = this.add.sprite(400, 230, 'player-character', 15).setOrigin(0.5, 1)
       .setScale(0.56).setAlpha(0).setDepth(2);
-    this.tweens.add({ targets: hero, y: 234, alpha: 1, angle: -4, duration: 560, ease: 'Bounce.Out', delay: 240,
+    [eyebrow, title, message].forEach(item => item.setDepth(3));
+    this.tweens.add({ targets: hero, y: 263, alpha: 1, angle: -4, duration: 560, ease: 'Bounce.Out', delay: 240,
       onComplete: () => { hero.setAngle(0); hero.play('gameover-crouch'); }
     });
 
@@ -89,13 +95,20 @@ export class GameOverScene extends Phaser.Scene {
       targets: item, alpha: 1, duration: 300, delay: 470
     }));
 
-    const retry = () => this.scene.start('GameScene', {
-      level: this.failedLevel, score: this.finalScore, coins: this.finalCoins, lives: 3
-    });
+    let leaving = false;
+    const go = (key, data) => {
+      if (leaving) return;
+      leaving = true;
+      this.scene.start(key, data);
+    };
+    const retry = event => {
+      if (event?.repeat) return;
+      go('GameScene', { level: this.failedLevel, score: this.retryScore, coins: this.retryCoins, lives: 3 });
+    };
     const actions = [
       button(this, 211, 351, 172, 'TRY AGAIN  >', retry, true),
-      button(this, 400, 351, 172, 'LEVEL SELECT', () => this.scene.start('LevelSelectScene')),
-      button(this, 589, 351, 172, 'HOME', () => this.scene.start('MainMenuScene'))
+      button(this, 400, 351, 172, 'LEVEL SELECT', () => go('LevelSelectScene')),
+      button(this, 589, 351, 172, 'HOME', () => go('MainMenuScene'))
     ];
     actions.forEach((item, i) => {
       item.setAlpha(0).setY(365);

@@ -1,4 +1,5 @@
 import { playSound } from './ui.js';
+import { bakeCentered } from './bakeGraphics.js';
 
 const ITEM_PRICE = 5;
 const MAX_BLOOD = 3;
@@ -29,7 +30,7 @@ export function addLevel6Shop(scene) {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '9px',
     fontStyle: 'bold', color: '#fff5dc', stroke: '#211912', strokeThickness: 2
   }).setOrigin(0.5);
-  sign.add([plate, title, offer]);
+  sign.add([bakeCentered(scene, plate, 'level6-shop-sign', 69), title, offer]);
 
   const prompt = scene.add.text(x, floorY - 87, '', {
     fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '10px',

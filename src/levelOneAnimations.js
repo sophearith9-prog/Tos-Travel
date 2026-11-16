@@ -1,3 +1,5 @@
+import { bakeGraphics } from './bakeGraphics.js';
+
 export function addTempleAmbience(scene, width) {
   // Dark canopy edges frame the temple without hiding the route or platforms.
   const canopy = scene.add.graphics().setDepth(-18);
@@ -12,6 +14,9 @@ export function addTempleAmbience(scene, width) {
         .fillEllipse(lx, ly, 11, 5);
     }
   }
+  // ~6,500 static draw commands: bake once at camera zoom so they stay sharp.
+  bakeGraphics(scene, canopy, `level1-canopy-${width}`,
+    { x: -40, y: -16, width: width + 180, height: 70 }, scene.cameras.main.zoom);
 
   // Golden fireflies drift through the ruins at several depths.
   for (let i = 0; i < Math.ceil(width / 125); i++) {

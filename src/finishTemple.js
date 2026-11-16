@@ -1,3 +1,5 @@
+import { bakeCentered } from './bakeGraphics.js';
+
 // A small, code-drawn Angkor Wat-inspired silhouette with five lotus towers.
 export function addFinishTemple(scene, map) {
   // These panoramic levels already include their shrine structures.
@@ -111,7 +113,9 @@ function addAngkorPortal(scene, center, ground) {
   aura.lineStyle(3, 0xffd36b, 0.94).strokeEllipse(0, -42, 34, 79);
   aura.lineStyle(1.5, 0xfff0b0, 0.95).strokeEllipse(0, -42, 27, 69);
   const view = scene.add.image(0, -32, key).setDisplaySize(23, 66).setAlpha(0.94);
-  portal.add([aura, view]);
+  // Static ellipses: bake once instead of re-triangulating per frame. The camera zoom is
+  // not set yet when this runs, so bake at the game's largest zoom (2.2) to stay sharp.
+  portal.add([bakeCentered(scene, aura, 'finish-portal-aura', 90, 2.2), view]);
   scene.templePortal = portal;
   scene.tweens.add({ targets: portal, alpha: 0.76, scaleX: 0.91,
     duration: 760, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });

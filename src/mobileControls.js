@@ -15,15 +15,26 @@ export function installMobileControls(game) {
   document.body.classList.toggle('is-mobile-device', isMobileDevice);
   const held = new Map();
   const buttons = [...controls.querySelectorAll('button')];
+  const machine = controls.parentElement;
   const alignControls = () => {
     if (!game.canvas) return;
+    // On a portrait phone the canvas is short (~200px tall at 390px wide), so overlaid
+    // buttons would hide the bottom quarter of the view where the player runs. Put them
+    // in the empty space below the canvas instead (index.html reserves 76px there in
+    // portrait); landscape keeps the overlay.
+    const portrait = isMobileDevice && window.innerHeight > window.innerWidth;
+    const fixedFrame = getComputedStyle(machine).position === 'fixed';
     const canvas = game.canvas.getBoundingClientRect();
-    const container = controls.parentElement.getBoundingClientRect();
+    const container = machine.getBoundingClientRect();
     // Keep touch targets in screen pixels so small phones do not shrink them.
-    const size = Math.max(50, Math.min(60, canvas.width / 7.5));
+    const size = portrait ? 56 : Math.max(50, Math.min(60, canvas.width / 7.5));
     const height = size + 8;
+    const roomBelow = container.bottom - canvas.bottom;
+    const below = portrait && (!fixedFrame || roomBelow >= height + 8);
     controls.style.setProperty('--controls-left', `${canvas.left - container.left}px`);
-    controls.style.setProperty('--controls-top', `${canvas.top - container.top + canvas.height - height}px`);
+    controls.style.setProperty('--controls-top', below
+      ? `${canvas.bottom - container.top + 6}px`
+      : `${canvas.top - container.top + canvas.height - height}px`);
     controls.style.setProperty('--controls-width', `${canvas.width}px`);
     controls.style.setProperty('--controls-height', `${height}px`);
     controls.style.setProperty('--controls-size', `${size}px`);

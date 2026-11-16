@@ -147,6 +147,9 @@ function showEnemyBlood(scene, enemy, x, y) {
 }
 
 export function damageEnemy(scene, enemy, finisher = false, swordStrike = false) {
+  // Two hits can land on the same frame (e.g. stomp + reflected rock); the second
+  // must not touch an enemy whose body was already removed.
+  if (!enemy?.active || !enemy.body?.enable) return;
   const killingBlow = enemy.hitPoints <= 1;
   const heavyImpact = finisher || (swordStrike && killingBlow);
   const highComboImpact = swordStrike && (scene.comboCount || 0) >= 5;
@@ -169,9 +172,15 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
   const hitStopMs = heavyImpact || highComboImpact ? 100 : 65;
   scene.cameras.main.shake(heavyImpact || highComboImpact ? 130 : 90, heavyImpact || highComboImpact ? 0.014 : 0.007);
   scene.hitStopUntil = Math.max(scene.hitStopUntil || 0, scene.time.now + hitStopMs);
-  scene.physics.world.timeScale = 0.08;
+  // Arcade's timeScale is inverted: values above 1 slow physics down. The old 0.08 ran
+  // ~12 physics steps per frame, so a "freeze" fast-forwarded bodies through floors.
+  scene.physics.world.timeScale = 12.5;
   scene.time.delayedCall(hitStopMs, () => {
-    if (scene.physics?.world && scene.hitStopUntil <= scene.time.now) scene.physics.world.timeScale = 1;
+    const world = scene.physics?.world;
+    if (!world || scene.hitStopUntil > scene.time.now) return;
+    world.timeScale = 1;
+    // Drop the time banked during the freeze so physics does not catch up in one burst.
+    world._elapsed = 0;
   });
   if (finisher) scene.showFloatingText(enemy.x, enemy.y - 35, 'FINISHER!', '#ffd36b');
   if (enemy.hitPoints > 1) {

@@ -19,7 +19,7 @@ export function installFinalBoss(scene) {
   boss.awake = false;
   boss.play('guardian-walk-1');
   scene.boss = boss;
-  scene.bossHealthText = scene.screenText(400, 150, 'FINAL GUARDIAN: 12 / 12', {
+  scene.bossHealthText = scene.screenText(400, 145, 'FINAL GUARDIAN: 12 / 12', {
     fontSize: '13px', fontStyle: 'bold', color: '#ffb4a9',
     stroke: '#17271f', strokeThickness: 3
   }).setOrigin(0.5).setDepth(211);

@@ -3,6 +3,8 @@ import { LEVEL_CONFIGS } from './levels/levelConfigs.js';
 import { TOTAL_LEVELS } from './levels/provinceRoute.js';
 
 export function showStageClear(scene) {
+  // Read by src/fullscreen.js to hide the HTML fullscreen button over this card.
+  scene.stageClearOpen = true;
   const zoom = scene.cameras.main.zoom;
   const root = scene.add.container(400 - 400 / zoom, 225 - 225 / zoom)
     .setScale(1 / zoom).setScrollFactor(0).setDepth(400);
@@ -53,22 +55,30 @@ export function showStageClear(scene) {
   scene.tweens.add({ targets: [stats, scoreCaption, scoreValue, coinCaption, coinValue],
     alpha: 1, duration: 420, delay: 340, ease: 'Back.Out' });
 
+  // Navigate once: a click plus a key press (or both keys) must not start two scenes.
+  let leaving = false;
+  const go = (key, data) => {
+    if (leaving) return;
+    leaving = true;
+    scene.scene.start(key, data);
+  };
   const continueAction = () => {
+    if (leaving) return;
     if (!isFinalStage) {
-      scene.scene.start('GameScene', {
+      go('GameScene', {
         level: scene.currentLevel + 1, score: scene.score,
         coins: scene.coins, lives: scene.lives, health: scene.health, shields: scene.shields
       });
     } else {
-      scene.scene.start('VictoryScene', {
+      go('VictoryScene', {
         level: TOTAL_LEVELS, score: scene.score + 1000, coins: scene.coins
       });
     }
   };
   const continueButton = button(scene, 400, 295, 258,
     isFinalStage ? 'SEE YOUR VICTORY  >' : 'CONTINUE JOURNEY  >', continueAction, true);
-  const levelsButton = button(scene, 310, 347, 166, 'LEVEL SELECT', () => scene.scene.start('LevelSelectScene'));
-  const homeButton = button(scene, 490, 347, 166, 'BACK TO HOME', () => scene.scene.start('MainMenuScene'));
+  const levelsButton = button(scene, 310, 347, 166, 'LEVEL SELECT', () => go('LevelSelectScene'));
+  const homeButton = button(scene, 490, 347, 166, 'BACK TO HOME', () => go('MainMenuScene'));
   root.add([continueButton, levelsButton, homeButton]);
   [continueButton, levelsButton, homeButton].forEach((item, i) => {
     item.setAlpha(0).setY(i === 0 ? 308 : 360).setScrollFactor(0);
@@ -80,7 +90,9 @@ export function showStageClear(scene) {
   scene.tweens.add({ targets: hint, alpha: 1, duration: 300, delay: 760 });
 
   if (scene.input.keyboard) {
-    scene.input.keyboard.once('keydown-ENTER', continueAction);
-    scene.input.keyboard.once('keydown-SPACE', continueAction);
+    // SPACE is also jump: ignore auto-repeat from a key still held when the stage ended.
+    const onKey = event => { if (!event.repeat) continueAction(); };
+    scene.input.keyboard.on('keydown-ENTER', onKey);
+    scene.input.keyboard.on('keydown-SPACE', onKey);
   }
 }

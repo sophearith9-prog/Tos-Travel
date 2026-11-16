@@ -11,6 +11,7 @@
     // Stack just below the pause HUD at (770, 28) in the game's 800x450 layout.
     button.style.left = `${canvas.left - frame.left + canvas.width * (770 / 800)}px`;
     button.style.top = `${canvas.top - frame.top + canvas.height * (78 / 450)}px`;
+    button.classList.add('is-placed');
   };
   const sync = () => {
     const active = fullscreenElement() === machine || expanded;
@@ -22,6 +23,22 @@
     button.setAttribute('aria-pressed', String(active));
     requestAnimationFrame(() => { game.scale.refresh(); positionButton(); });
   };
+  // Hide the HTML button while an in-game overlay (pause, game over, victory, stage
+  // clear, shop) is open so it never sits on top of menu panels.
+  const OVERLAY_SCENES = ['PauseScene', 'GameOverScene', 'VictoryScene'];
+  const overlayOpen = () => {
+    if (OVERLAY_SCENES.some(key => game.scene.isActive(key))) return true;
+    const play = game.scene.getScene('GameScene');
+    return !!play?.sys.isActive() && !!(play.stageClearOpen || play.level6Shop?.busy || play.level8Shop?.busy);
+  };
+  let hiddenForOverlay = false;
+  game.events.on('poststep', () => {
+    const hide = overlayOpen();
+    if (hide === hiddenForOverlay) return;
+    hiddenForOverlay = hide;
+    button.classList.toggle('is-overlay-hidden', hide);
+    if (hide && document.activeElement === button) button.blur();
+  });
   game.scale.on('resize', positionButton);
   window.addEventListener('resize', positionButton);
   window.addEventListener('orientationchange', positionButton);

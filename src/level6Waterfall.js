@@ -1,4 +1,5 @@
 import { audioSettings, onAudioSettingsChange } from './audioSettings.js';
+import { bakeGraphics } from './bakeGraphics.js';
 
 const WATERFALLS = [
   { x: 300, top: 336, bottom: 620, width: 21, speed: 0.075 },
@@ -108,7 +109,7 @@ export function addLevel6WaterfallEffects(scene) {
   const flowingWater = [];
 
   // Scroll narrow, transparent pixel-water sheets downward over each cascade.
-  for (const fall of WATERFALLS) {
+  WATERFALLS.forEach((fall, fallIndex) => {
     const flow = scene.add.tileSprite(fall.x, (fall.top + fall.bottom) / 2,
       fall.width, fall.bottom - fall.top, 'level6-falling-water')
       .setDepth(-17).setAlpha(0.9);
@@ -121,7 +122,10 @@ export function addLevel6WaterfallEffects(scene) {
       lipFoam.fillCircle(fall.x - fall.width * 0.43 + i * fall.width * 0.215,
         fall.top + (i % 2) * 2, 2.2);
     }
-    scene.tweens.add({ targets: lipFoam, y: 1.5, alpha: 0.72,
+    // Circles cost ~100 triangulated points each per frame as Graphics; bake them once.
+    const [foamLip] = bakeGraphics(scene, lipFoam, `level6-lip-foam-${fallIndex}`,
+      { x: fall.x - fall.width / 2 - 4, y: fall.top - 4, width: fall.width + 8, height: 10 });
+    scene.tweens.add({ targets: foamLip, y: foamLip.y + 1.5, alpha: 0.72,
       duration: 460 + fall.width * 9, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     const foam = scene.add.ellipse(fall.x, fall.bottom, fall.width * 2.1, 6,
@@ -143,7 +147,7 @@ export function addLevel6WaterfallEffects(scene) {
       };
       burst();
     }
-  }
+  });
 
   // The basin runs across the whole painted pool. Several staggered bands
   // make the surface read as flowing water instead of a single moving stripe.
@@ -163,7 +167,10 @@ export function addLevel6WaterfallEffects(scene) {
     const x = 319 + i * 10.5;
     spillLip.fillRoundedRect(x, 748 + (i % 3) * 2, 7 + (i % 4), 3, 1);
   }
-  scene.tweens.add({ targets: spillLip, alpha: 0.55, y: 1,
+  // 19 rounded rects were ~7,600 triangulated points every frame: the main Level 6 stutter.
+  const [spillFoam] = bakeGraphics(scene, spillLip, 'level6-spill-lip',
+    { x: 314, y: 744, width: 210, height: 18 });
+  scene.tweens.add({ targets: spillFoam, alpha: 0.55, y: spillFoam.y + 1,
     duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
   return {

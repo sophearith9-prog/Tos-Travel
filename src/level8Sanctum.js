@@ -1,6 +1,7 @@
 import { LEVEL8 } from './levels/level8Layout.js';
 import { touchControls } from './mobileControls.js';
 import { addLevel8KhmerShop } from './level8Shop.js';
+import { bakeCentered, bakeGraphics } from './bakeGraphics.js';
 
 function createSanctumTexture(scene) {
   if (!scene.textures.exists('level8-mekong-islet')) {
@@ -63,29 +64,33 @@ function createSanctumTexture(scene) {
 
 function addSwitch(scene, item, index, state) {
   const y = item.y - 14;
-  const art = scene.add.graphics().setDepth(4);
-  art.fillStyle(0x262b27, 0.95).fillRoundedRect(item.x - 17, y - 6, 34, 18, 4);
-  art.lineStyle(2, 0xb78742, 1).strokeRoundedRect(item.x - 17, y - 6, 34, 18, 4);
-  art.fillStyle(0x8c5b33, 1).fillCircle(item.x, y + 2, 7);
-  art.fillStyle(0xf4c967, 1).fillCircle(item.x, y + 2, 4);
-  art.setData('activated', false);
+  // Draw around a local origin and bake both states once. The old Graphics was drawn in
+  // world coordinates and scale-tweened, so it pulsed around the map origin (sliding
+  // across the level) and was re-triangulated every frame.
+  const drawPad = (graphics, fill, fillAlpha, edge, outer, inner, innerRadius) => graphics
+    .fillStyle(fill, fillAlpha).fillRoundedRect(-17, -8, 34, 18, 4)
+    .lineStyle(2, edge, 1).strokeRoundedRect(-17, -8, 34, 18, 4)
+    .fillStyle(outer, 1).fillCircle(0, 0, 7)
+    .fillStyle(inner, 1).fillCircle(0, 0, innerRadius);
+  const art = bakeCentered(scene, drawPad(scene.add.graphics(), 0x262b27, 0.95, 0xb78742, 0x8c5b33, 0xf4c967, 4),
+    'level8-switch-idle', 20).setPosition(item.x, y + 2).setDepth(4);
+  const activeArt = bakeCentered(scene, drawPad(scene.add.graphics(), 0x294334, 1, 0x9de5a6, 0x8be0a0, 0xd4ffe0, 3),
+    'level8-switch-active', 20).setPosition(item.x, y + 2).setDepth(4).setVisible(false);
+  let activated = false;
   const sensor = scene.add.zone(item.x, y, 34, 30);
   scene.physics.add.existing(sensor, true);
   scene.physics.add.overlap(scene.player, sensor, () => {
-    if (art.getData('activated') || scene.isLevelFinished) return;
-    art.setData('activated', true);
+    if (activated || scene.isLevelFinished) return;
+    activated = true;
     state.switches[index] = true;
-    art.clear();
-    art.fillStyle(0x294334, 1).fillRoundedRect(item.x - 17, y - 6, 34, 18, 4);
-    art.lineStyle(2, 0x9de5a6, 1).strokeRoundedRect(item.x - 17, y - 6, 34, 18, 4);
-    art.fillStyle(0x8be0a0, 1).fillCircle(item.x, y + 2, 7);
-    art.fillStyle(0xd4ffe0, 1).fillCircle(item.x, y + 2, 3);
+    art.setVisible(false);
+    activeArt.setVisible(true);
     scene.showFloatingText(item.x, y - 18, `${item.label} SWITCH ${state.switches.filter(Boolean).length}/3`, '#b9f4c0');
     scene.cameras.main.flash(140, 70, 120, 92, false);
     updateObjective(scene, state);
     maybeOpenSanctum(scene, state);
   });
-  scene.tweens.add({ targets: art, scale: 1.12, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  scene.tweens.add({ targets: [art, activeArt], scale: 1.12, duration: 520, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 }
 
 function updateObjective(scene, state) {
@@ -214,7 +219,11 @@ export function installLevel8Sanctum(scene) {
     for (let point = -2; point <= 2; point++) {
       head.fillStyle(0xc2b48d, 1).fillTriangle(point * 5 - 3, 53, point * 5 + 3, 53, point * 5, 69);
     }
-    swing.add([chain, head]);
+    // Bake the static chain + spiked head; the image keeps the container's swing pivot (0, 0).
+    swing.add([
+      ...bakeGraphics(scene, chain, 'level8-spike-chain', { x: -3, y: -2, width: 6, height: 46 }),
+      ...bakeGraphics(scene, head, 'level8-spike-head', { x: -16, y: 33, width: 32, height: 38 })
+    ]);
     scene.tweens.add({ targets: swing, angle: 36, duration: 720, yoyo: true,
       repeat: -1, ease: 'Sine.easeInOut' });
     // Keep damage aligned to the spiked head rather than the whole chain.
@@ -267,11 +276,14 @@ function fireDart(scene, statue) {
     'level8-sanctum-dart').setDepth(7);
   dart.setFlipX(statue.direction < 0);
   dart.body.setAllowGravity(false).setVelocityX(statue.direction * 280);
-  scene.physics.add.overlap(scene.player, dart, (player, projectile) => {
+  const overlap = scene.physics.add.overlap(scene.player, dart, (player, projectile) => {
     if (!projectile.active) return;
     projectile.destroy();
     scene.handlePlayerEnemyCollision(player, { x: player.x < statue.x ? player.x + 20 : player.x - 20 }, true);
   });
+  // Each dart gets its own overlap; remove it with the dart or the world's
+  // collider list grows for as long as the statues keep firing.
+  dart.once('destroy', () => overlap.destroy());
   scene.time.delayedCall(2400, () => { if (dart.active) dart.destroy(); });
 }
 
@@ -354,7 +366,11 @@ export function attachLevel8Sanctum(scene) {
       fontStyle: 'bold', color: '#ffe1a0', stroke: '#20170f', strokeThickness: 3
     }).setOrigin(0.5).setDepth(18);
     state.bossBar = scene.add.graphics().setDepth(18);
-    state.bossAura = scene.add.graphics().setDepth(7);
+    // Ellipse shapes triangulate once; a Graphics ellipse was re-triangulated every frame.
+    state.bossAura = scene.add.container(boss.x, boss.y - 30).setDepth(7).add([
+      scene.add.ellipse(0, 0, 72, 84, 0x55799a, 0.18),
+      scene.add.ellipse(0, 0, 78, 90).setStrokeStyle(2, 0x9ce2dd, 0.42)
+    ]);
     boss.once('destroy', () => {
       state.bossName?.destroy();
       state.bossBar?.destroy();
@@ -405,13 +421,13 @@ export function updateLevel8Sanctum(scene, delta) {
     }
   }
   if (state.boss?.active) {
-    state.bossAura?.clear()
-      .fillStyle(0x55799a, 0.18).fillEllipse(state.boss.x, state.boss.y - 30, 72, 84)
-      .lineStyle(2, 0x9ce2dd, 0.42).strokeEllipse(state.boss.x, state.boss.y - 30, 78, 90);
+    state.bossAura?.setPosition(state.boss.x, state.boss.y - 30);
     state.bossName?.setPosition(state.boss.x, state.boss.y - 92)
       .setText(`NAGA SHADE  ${Math.max(0, state.boss.hitPoints)}/${state.boss.maxHitPoints}`);
     const ratio = Phaser.Math.Clamp(state.boss.hitPoints / state.boss.maxHitPoints, 0, 1);
-    state.bossBar?.clear().fillStyle(0x211817, 1).fillRoundedRect(state.boss.x - 34, state.boss.y - 80, 68, 7, 3)
-      .fillStyle(0xd84e58, 1).fillRoundedRect(state.boss.x - 32, state.boss.y - 78, 64 * ratio, 3, 2);
+    // Plain rects: a 3px-tall rounded rect with radius 2 is a degenerate shape that cost
+    // ~2ms of triangulation every frame.
+    state.bossBar?.clear().fillStyle(0x211817, 1).fillRect(state.boss.x - 34, state.boss.y - 80, 68, 7)
+      .fillStyle(0xd84e58, 1).fillRect(state.boss.x - 32, state.boss.y - 78, 64 * ratio, 3);
   }
 }
