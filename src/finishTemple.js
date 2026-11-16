@@ -4,6 +4,8 @@ import { bakeCentered } from './bakeGraphics.js';
 export function addFinishTemple(scene, map) {
   // These panoramic levels already include their shrine structures.
   if (scene.currentLevel === 6 || scene.currentLevel === 7 || scene.currentLevel === 8) return;
+  // Hand-made layouts place their own finish scenery.
+  if (scene.layout) return;
   const center = (map.width - 7) * 18 + 9;
   const ground = 11 * 18;
   scene.groundLayer.forEachTile(tile => {

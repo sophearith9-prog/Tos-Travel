@@ -63,9 +63,9 @@ export function addFinishFlag(scene, map) {
     ctx.lineTo(20, 15); ctx.closePath(); ctx.fill();
     texture.refresh();
   }
-  const poleX = scene.currentLevel === 6 ? LEVEL6.finish.x
+  const poleX = scene.layout ? scene.layout.finish.x : scene.currentLevel === 6 ? LEVEL6.finish.x
     : scene.currentLevel === 8 ? LEVEL8.finish.x : column * 18 + 9;
-  const baseY = scene.currentLevel === 6 ? LEVEL6.finish.floorY
+  const baseY = scene.layout ? scene.layout.finish.floorY : scene.currentLevel === 6 ? LEVEL6.finish.floorY
     : scene.currentLevel === 8 ? LEVEL8.finish.floorY : 198;
   scene.add.image(poleX, baseY, 'finish-flag-art')
     .setOrigin(24 / 104, 190 / 192).setScale(0.5).setDepth(-1);

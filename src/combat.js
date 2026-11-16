@@ -209,12 +209,14 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
       duration: 420, ease: 'Cubic.easeOut', onComplete: () => stunMark.destroy() });
     const hitsLeft = enemy.hitPoints;
     scene.showFloatingText(head.x, head.y - 16, `${hitsLeft} HIT${hitsLeft === 1 ? '' : 'S'} LEFT`, '#ffe2a0');
+    enemy.onHit?.(enemy);
     return;
   }
   scene.recordLevel3GuardianDefeat?.(enemy);
   scene.recordLevel6EnemyDefeat?.(enemy);
   scene.recordLevel8BossDefeat?.(enemy);
   scene.recordLevel9BossDefeat?.(enemy);
+  enemy.onDefeat?.(enemy);
   if (swordStrike) {
     const knockback = Math.sign(enemy.x - scene.player.x) || -enemy.patrolDirection || 1;
     enemy.disableBody(true, false);
@@ -391,7 +393,7 @@ function patrolBounds(scene, column, row) {
 export function setupEnemy(scene, enemy, index, variant = index % 3) {
   // Put each guardian on a nearby surface rather than letting a spawn over a pit fall.
   let surface = null, best = Infinity;
-  if (!scene.level8Sanctum && !scene.level9Highlands) scene.groundLayer.forEachTile(tile => {
+  if (!scene.level8Sanctum && !scene.level9Highlands && !scene.patrolTerrain) scene.groundLayer.forEachTile(tile => {
     if (tile.y < 3 || tile.y > 11 || !patrolSurface(scene, tile.x, tile.y)) return;
     const bounds = patrolBounds(scene, tile.x, tile.y);
     if (bounds.last - bounds.first < 2) return;
@@ -430,7 +432,7 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
     const aheadX = body.center.x + enemy.patrolDirection * (body.width / 2 + 6);
     const ahead = Math.floor(aheadX / width);
     const wall = body.blocked.left || body.blocked.right ||
-      (!scene.level6Terrain && scene.groundLayer.getTileAt(ahead, row - 1)?.collides);
+      (!scene.level6Terrain && !scene.patrolTerrain && scene.groundLayer.getTileAt(ahead, row - 1)?.collides);
   const hasLevel8Support = () => {
     const state = scene.level8Sanctum;
     if (!state) return false;
@@ -450,12 +452,14 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
     return ledgeSupport || logSupport;
   };
   const gap = scene.level9Highlands ? !hasLevel9Support()
-    : scene.level8Sanctum ? !hasLevel8Support() : scene.level6Terrain
-      ? !scene.level6Terrain.hasSupport(aheadX, body.bottom)
+    : scene.level8Sanctum ? !hasLevel8Support()
+      // Hand-made layouts (stages 10-28) expose the same probe as Level 6.
+      : scene.patrolTerrain ? !scene.patrolTerrain.hasSupport(aheadX, body.bottom)
+      : scene.level6Terrain ? !scene.level6Terrain.hasSupport(aheadX, body.bottom)
       : !scene.groundLayer.getTileAt(ahead, row)?.collides;
     if (body.left <= 2 || body.right >= scene.map.widthInPixels - 2) {
       enemy.patrolDirection = body.left <= 2 ? 1 : -1;
-    } else if (scene.level6Terrain || scene.level8Sanctum || scene.level9Highlands) {
+    } else if (scene.level6Terrain || scene.level8Sanctum || scene.level9Highlands || scene.patrolTerrain) {
       if (wall || gap) enemy.patrolDirection *= -1;
     } else if (now >= enemy.nextJump) {
       // Decide once per encounter; a skipped jump turns back instead of retrying every frame.
@@ -547,6 +551,8 @@ export function updateCombat(scene) {
   });
   scene.enemies.getChildren().forEach(enemy => {
     if (!enemy.active || !enemy.body?.enable) return;
+    // Mini-bosses (src/mechanics/miniBoss.js) run their own behaviour.
+    if (enemy.customAI) return;
     if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }
     if (enemy.body.top > scene.map.heightInPixels + 36) { enemy.destroy(); return; }
     if (scene.currentLevel === 3 && enemy.enemyKind === 'stone-guardian' &&

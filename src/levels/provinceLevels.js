@@ -4,8 +4,33 @@ import { LEVEL7 } from './level7Layout.js';
 import { LEVEL8 } from './level8Layout.js';
 import { LEVEL9 } from './level9Layout.js';
 import { PROVINCE_ENVIRONMENTS } from '../biomes/biomeConfig.js';
+import { getLayout } from './layoutRegistry.js';
+import { createLayoutMap } from './layoutFormat.js';
 
+// Stages 10-28 use a hand-made layout when one is registered (src/levels/layoutRegistry.js)
+// and fall back to the generic generator below otherwise.
 export function createProvinceLevel(province, index) {
+  const generated = createGeneratedProvinceLevel(province, index);
+  const layout = getLayout(index + 4);
+  return layout ? layoutLevelConfig(layout, generated) : generated;
+}
+
+// Level config for a hand-made layout, on top of the generated config's defaults
+// (province, sky colour, enemy speed, biome environment).
+export function layoutLevelConfig(layout, base) {
+  return {
+    ...base,
+    title: layout.title || base.title,
+    width: layout.width / 18,
+    coins: layout.coins,
+    enemies: layout.enemies,
+    enemySpeed: layout.enemySpeed ?? base.enemySpeed,
+    environment: layout.environment ? { ...base.environment, ...layout.environment } : base.environment,
+    layout
+  };
+}
+
+function createGeneratedProvinceLevel(province, index) {
   const width = province.id === 'oddar-meanchey' ? 45
     : province.id === 'preah-vihear' ? LEVEL7.width / 18
       : province.id === 'stung-treng' ? LEVEL8.width / 18
@@ -54,6 +79,7 @@ export function createProvinceLevel(province, index) {
 }
 
 export function createProvinceMap(level) {
+  if (level.layout) return createLayoutMap(level.layout);
   if (level.province.id === 'siem-reap') return createSiemReapMap(level);
   if (level.province.id === 'oddar-meanchey') return createOddarMeancheyMap();
   if (level.province.id === 'preah-vihear') return createLevel7Map();

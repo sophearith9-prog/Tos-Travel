@@ -2,6 +2,11 @@ import { label, button, playSound } from '../ui.js';
 import { audioSettings, onAudioSettingsChange } from '../audioSettings.js';
 import { bakeGraphics } from '../bakeGraphics.js';
 import { addPitMarkers } from '../pitMarkers.js';
+import { getLayout } from '../levels/layoutRegistry.js';
+import { layoutLevelConfig } from '../levels/provinceLevels.js';
+import { layoutMechanics } from '../levels/layoutFormat.js';
+import { installLayoutTerrain } from '../levels/layoutTerrain.js';
+import { installMechanics } from '../mechanics/index.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
@@ -92,6 +97,13 @@ export class GameScene extends Phaser.Scene {
     this.nextRunGlintAt = 0;
     this.vitalBarsSignature = null;
     this.stageClearOpen = false;
+    // Hand-made layout for stages 10-28 (null = generated stage or Levels 1-9).
+    this.layout = this.currentLevel >= 10 ? getLayout(this.currentLevel) : null;
+    this.mechanics = [];
+    this.patrolTerrain = null;
+    this.activeCheckpoint = null;
+    this.goalLocks = [];          // functions returning a hint while the flag is locked
+    this.safeGroundFilters = [];  // functions rejecting unsafe respawn spots
   }
 
   preload() {
@@ -163,6 +175,10 @@ export class GameScene extends Phaser.Scene {
       this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
+    // Extra images a hand-made layout asks for.
+    for (const { key, url } of this.layout?.assets || []) {
+      if (!this.textures.exists(key)) this.load.image(key, url);
+    }
     this.load.spritesheet('vireak-sword-actions', 'assets/vireak-sword-actions.png', {
       frameWidth: 384,
       frameHeight: 256
@@ -196,7 +212,8 @@ export class GameScene extends Phaser.Scene {
     prepareEnemySkin(this);
     this.createAnimations();
 
-    const config = LEVEL_CONFIGS[this.currentLevel] || LEVEL_CONFIGS[1];
+    const baseConfig = LEVEL_CONFIGS[this.currentLevel] || LEVEL_CONFIGS[1];
+    const config = this.layout ? layoutLevelConfig(this.layout, baseConfig) : baseConfig;
     this.province = config.province;
     const mapKey = 'level' + this.currentLevel;
     if (config.province && this.currentLevel !== 4) {
@@ -260,20 +277,22 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer = map.createLayer('Platforms', tilesets, 0, 0);
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
-      if (this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9) this.groundLayer.setAlpha(0);
+      if (this.layout || this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9) this.groundLayer.setAlpha(0);
       if (this.currentLevel === 4) addLevel4PainterlyPlatforms(this, map);
     }
     if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
     this.level6Terrain = null;
     this.level7Terrain = null;
     this.level8Terrain = null;
-    this.collisionGround = this.currentLevel === 6 ? installLevel6Terrain(this)
+    this.collisionGround = this.layout ? installLayoutTerrain(this, this.layout)
+      : this.currentLevel === 6 ? installLevel6Terrain(this)
       : this.currentLevel === 7 ? installLevel7Terrain(this)
         : this.currentLevel === 8 ? installLevel8Sanctum(this)
           : this.currentLevel === 9 ? installLevel9Terrain(this) : this.groundLayer;
     if (this.currentLevel !== 1) addEnvironment(this, map);
     addFinishTemple(this, map);
-    this.finishFlag = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 9
+    this.finishFlag = this.layout ? (this.layout.finish.flag ? addFinishFlag(this, map) : null)
+      : this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 9
       ? null : addFinishFlag(this, map);
     this.level6Gate = this.currentLevel === 6 ? addLevel6Gate(this) : null;
     this.level6Shop = this.currentLevel === 6 ? addLevel6Shop(this) : null;
@@ -282,9 +301,9 @@ export class GameScene extends Phaser.Scene {
 
     // Spawn Player
     const customPlayer = this.textures.exists('player-character');
-    const startY = this.currentLevel === 6 ? LEVEL6.spawn.y : this.currentLevel === 7 ? LEVEL7.spawn.y
+    const startY = this.layout ? this.layout.spawn.y : this.currentLevel === 6 ? LEVEL6.spawn.y : this.currentLevel === 7 ? LEVEL7.spawn.y
       : this.currentLevel === 8 ? LEVEL8.spawn.y : this.currentLevel === 9 ? LEVEL9.spawn.y : 150;
-    const startX = this.currentLevel === 6 ? LEVEL6.spawn.x : this.currentLevel === 7 ? LEVEL7.spawn.x
+    const startX = this.layout ? this.layout.spawn.x : this.currentLevel === 6 ? LEVEL6.spawn.x : this.currentLevel === 7 ? LEVEL7.spawn.x
       : this.currentLevel === 8 ? LEVEL8.spawn.x : this.currentLevel === 9 ? LEVEL9.spawn.x : 50;
     this.player = customPlayer
       ? this.physics.add.sprite(startX, startY, 'player-character', 0)
@@ -311,7 +330,7 @@ export class GameScene extends Phaser.Scene {
     this.swordActionSprite = this.add.sprite(this.player.x, this.player.y, 'vireak-sword-actions', 0)
       .setOrigin(0.5, 0.625).setScale(24 / 256).setDepth(this.player.depth + 1).setVisible(false);
     this.physics.add.collider(this.player, this.collisionGround,
-      this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? null : this.hitCoinBlock,
+      this.layout || this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? null : this.hitCoinBlock,
       this.currentLevel === 6 ? () => this.time.now >= this.level6DropUntil : null, this);
     if (this.level6Gate) this.physics.add.collider(this.player, this.level6Gate.blocker);
 
@@ -407,16 +426,17 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
     // Finish Section: Flagpole Trigger Zone (width - 15) and Castle Door (width - 7)
-    const flagPixelX = this.currentLevel === 6 ? LEVEL6.finish.x : this.currentLevel === 7 ? LEVEL7.finish.x
+    const flagPixelX = this.layout ? this.layout.finish.x : this.currentLevel === 6 ? LEVEL6.finish.x : this.currentLevel === 7 ? LEVEL7.finish.x
       : this.currentLevel === 8 ? LEVEL8.finish.x : this.currentLevel === 9 ? LEVEL9.finish.x : this.currentLevel === 1
       ? (map.width - 7) * 18 + 9
       : (map.width - 15) * 18 + 9;
     this.flagX = flagPixelX;
-    this.castleDoorX = this.currentLevel === 6 ? LEVEL6.finish.doorX : this.currentLevel === 7 ? LEVEL7.finish.doorX
+    this.castleDoorX = this.layout ? this.layout.finish.doorX : this.currentLevel === 6 ? LEVEL6.finish.doorX : this.currentLevel === 7 ? LEVEL7.finish.doorX
       : this.currentLevel === 8 ? LEVEL8.finish.doorX : this.currentLevel === 9 ? LEVEL9.finish.doorX : (map.width - 7) * 18 + 9;
 
     // Extend in front of the solid pole so touching it always clears the level.
-    this.goal = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9
+    this.goal = this.layout ? this.add.zone(flagPixelX, this.layout.finish.floorY - 22, 28, 44)
+      : this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9
       ? this.add.zone(flagPixelX,
         (this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY
           : this.currentLevel === 8 ? LEVEL8.finish.floorY : LEVEL9.finish.floorY) - 22, 28, 44)
@@ -434,7 +454,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, false, 0.1,
       this.currentLevel === 4 ? 0 : 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
-    this.cameras.main.setZoom(this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
+    this.cameras.main.setZoom(this.layout ? this.layout.camera.zoom : this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
     if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
     if (this.currentLevel === 2) installLevelTwoTrial(this);
     if (config.province) addProvinceScenery(this, config.province, config.environment);
@@ -466,7 +486,11 @@ export class GameScene extends Phaser.Scene {
     if (this.currentLevel === 1) this.startLevelOneBoatArrival();
     if (this.currentLevel === 1) this.time.delayedCall(450, () => playSound(this, 'rooster-morning', { volume: 0.7 }));
     installCombat(this);
-    installFinalBoss(this);
+    // The final guardian is tied to the generated stage's geometry; a hand-made Stage 28
+    // opts in with `finalBoss: true` or uses a miniBoss mechanic instead.
+    if (!this.layout || this.layout.finalBoss) installFinalBoss(this);
+    else { this.boss = null; }
+    if (this.layout) this.mechanics = installMechanics(this, layoutMechanics(this.layout));
     if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
       this.screenText(18, 110, 'HOLD SHIFT + MOVE: SPRINT', {
         fontSize: '12px', fontStyle: 'bold', color: '#87d7ca',
@@ -1391,6 +1415,23 @@ export class GameScene extends Phaser.Scene {
     return this.health - previous;
   }
 
+  // Hand-made stages: revive at the last activated checkpoint (src/mechanics/checkpoint.js)
+  // with one unit of health instead of Game Over. Inactive on Levels 1-9.
+  respawnAtCheckpoint() {
+    const checkpoint = this.activeCheckpoint;
+    if (!this.layout || !checkpoint || !this.player?.body?.enable) return false;
+    this.lives = 1;
+    this.health = 50;
+    this.shields = Math.max(1, this.shields);
+    this.player.body.reset(checkpoint.x, checkpoint.y);
+    this.player.setVelocity(0, 0).body.setAllowGravity(true);
+    this.lastSafeGround = { ...checkpoint };
+    this.updateHUD();
+    this.showFloatingText(checkpoint.x, checkpoint.y - 25, 'CHECKPOINT  ·  RESTORED', '#c9f1bd');
+    this.startInvulnerabilityBlink();
+    return true;
+  }
+
   respawnAtLevel8Checkpoint() {
     const checkpoint = this.level8Checkpoint;
     if (this.currentLevel !== 8 || !checkpoint || !this.player?.body?.enable) return false;
@@ -1425,7 +1466,7 @@ export class GameScene extends Phaser.Scene {
       playSound(this, 'stomp', { volume: 0.5 });
       player.setVelocityY(-260);
       // Stomping only bounces the player; bosses cannot be damaged this way.
-      if (enemy.isBoss || enemy.enemyKind === 'stone-guardian') return;
+      if (enemy.isBoss || enemy.enemyKind === 'stone-guardian' || enemy.stompImmune) return;
       damageEnemy(this, enemy);
     } else {
       if (this.isInvulnerable) return;
@@ -1451,7 +1492,7 @@ export class GameScene extends Phaser.Scene {
       this.updateHUD();
 
       if (this.lives <= 0 || this.health <= 0) {
-        if (this.respawnAtLevel8Checkpoint()) return;
+        if (this.respawnAtLevel8Checkpoint() || this.respawnAtCheckpoint()) return;
         this.endRun();
       } else {
         player.setVelocityY(-180);
@@ -1492,6 +1533,9 @@ export class GameScene extends Phaser.Scene {
   isOnSafeGround() {
     const body = this.player.body;
     if (!body.blocked.down || body.bottom >= this.map.heightInPixels - 2) return false;
+    // Mechanics such as rising water or auto-scroll can veto a spot.
+    const spot = { x: this.player.x, y: this.player.y };
+    if (this.safeGroundFilters.some(accept => !accept(spot))) return false;
     const y = body.bottom + 2;
     const feet = [body.left + 2, body.right - 2];
     if (this.collisionGround === this.groundLayer) {
@@ -1511,7 +1555,7 @@ export class GameScene extends Phaser.Scene {
     this.loseHealthUnit();
     this.updateHUD();
     if (this.lives <= 0 || this.health <= 0) {
-      if (!this.respawnAtLevel8Checkpoint()) this.endRun();
+      if (!this.respawnAtLevel8Checkpoint() && !this.respawnAtCheckpoint()) this.endRun();
       return;
     }
     const spot = this.lastSafeGround || this.spawnPoint;
@@ -1530,6 +1574,15 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    // Mechanics (e.g. a mini-boss) can lock the flag on hand-made stages.
+    const lock = this.goalLocks.map(check => check()).find(Boolean);
+    if (lock) {
+      if (this.time.now >= (this.nextGoalLockHintAt || 0)) {
+        this.showFloatingText(player.x, player.y - 24, lock, '#ffe3a1');
+        this.nextGoalLockHintAt = this.time.now + 1400;
+      }
+      return;
+    }
     if (this.currentLevel === 8 && !this.level8Sanctum?.exitOpen) {
       const state = this.level8Sanctum;
       const switches = state?.switches.filter(Boolean).length || 0;
@@ -1595,7 +1648,7 @@ export class GameScene extends Phaser.Scene {
     player.play('player-jump');
     this.isSlidingDownFlag = true;
 
-    const finishFloorY = this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : this.currentLevel === 8 ? LEVEL8.finish.floorY : this.currentLevel === 9 ? LEVEL9.finish.floorY : 198;
+    const finishFloorY = this.layout ? this.layout.finish.floorY : this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : this.currentLevel === 8 ? LEVEL8.finish.floorY : this.currentLevel === 9 ? LEVEL9.finish.floorY : 198;
     const targetY = finishFloorY - 26;
 
     this.tweens.add({
@@ -1651,7 +1704,8 @@ export class GameScene extends Phaser.Scene {
     for (let f = 0; f < 4; f++) {
       this.time.delayedCall(f * 350, () => {
         const fx = castleCenter + (Math.random() * 40 - 20);
-        const fy = this.currentLevel === 6
+        const fy = this.layout ? this.layout.finish.floorY - 120 + Math.random() * 30
+          : this.currentLevel === 6
           ? LEVEL6.finish.floorY - 120 + Math.random() * 30
           : this.currentLevel === 7 ? LEVEL7.finish.floorY - 120 + Math.random() * 30
             : this.currentLevel === 8 ? LEVEL8.finish.floorY - 120 + Math.random() * 30
@@ -1835,7 +1889,7 @@ export class GameScene extends Phaser.Scene {
 
     // Pit fall detection. Hand-built tall levels (6-9) fall off their own map height;
     // Level 9 spawns at y=1068, so the classic 280px limit ended the run instantly.
-    const fallLimit = this.currentLevel >= 6 && this.currentLevel <= 9
+    const fallLimit = this.layout || (this.currentLevel >= 6 && this.currentLevel <= 9)
       ? this.map.heightInPixels + 30 : 280;
     if (this.player.y > fallLimit) this.handlePitFall();
   }
