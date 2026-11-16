@@ -149,6 +149,7 @@ function showEnemyBlood(scene, enemy, x, y) {
 export function damageEnemy(scene, enemy, finisher = false, swordStrike = false) {
   const killingBlow = enemy.hitPoints <= 1;
   const heavyImpact = finisher || (swordStrike && killingBlow);
+  const highComboImpact = swordStrike && (scene.comboCount || 0) >= 5;
   if (swordStrike) playSwordSound(scene, 'impact', heavyImpact ? 1 : 0);
   const head = getEnemyHeadPoint(enemy);
   showEnemyBlood(scene, enemy, head.x, head.y);
@@ -165,10 +166,11 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
   burst.fillStyle(0xffffff, 1).fillCircle(0, 0, heavyImpact ? 6 : 4);
   scene.tweens.add({ targets: burst, alpha: 0, scaleX: heavyImpact ? 2.2 : 1.8, scaleY: heavyImpact ? 2.2 : 1.8,
     duration: heavyImpact ? 270 : 210, ease: 'Cubic.easeOut', onComplete: () => burst.destroy() });
-  scene.cameras.main.shake(heavyImpact ? 130 : 90, heavyImpact ? 0.014 : 0.007);
-  scene.hitStopUntil = Math.max(scene.hitStopUntil || 0, scene.time.now + 65);
+  const hitStopMs = heavyImpact || highComboImpact ? 100 : 65;
+  scene.cameras.main.shake(heavyImpact || highComboImpact ? 130 : 90, heavyImpact || highComboImpact ? 0.014 : 0.007);
+  scene.hitStopUntil = Math.max(scene.hitStopUntil || 0, scene.time.now + hitStopMs);
   scene.physics.world.timeScale = 0.08;
-  scene.time.delayedCall(65, () => {
+  scene.time.delayedCall(hitStopMs, () => {
     if (scene.physics?.world && scene.hitStopUntil <= scene.time.now) scene.physics.world.timeScale = 1;
   });
   if (finisher) scene.showFloatingText(enemy.x, enemy.y - 35, 'FINISHER!', '#ffd36b');
@@ -202,6 +204,8 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
   }
   scene.recordLevel3GuardianDefeat?.(enemy);
   scene.recordLevel6EnemyDefeat?.(enemy);
+  scene.recordLevel8BossDefeat?.(enemy);
+  scene.recordLevel9BossDefeat?.(enemy);
   if (swordStrike) {
     const knockback = Math.sign(enemy.x - scene.player.x) || -enemy.patrolDirection || 1;
     enemy.disableBody(true, false);
@@ -240,7 +244,7 @@ export function installCombat(scene) {
     texture.refresh();
   }
   scene.physics.add.collider(scene.rockProjectiles, scene.collisionGround || scene.groundLayer,
-    rock => retireRock(scene, rock), projectileCanCollide);
+    rock => retireRock(scene, rock), rock => !rock.reflected && projectileCanCollide(rock));
   scene.physics.add.overlap(scene.player, scene.rockProjectiles, (player, rock) => {
     if (!rock.active || rock.reflected || scene.isLevelFinished) return;
     scene.handlePlayerEnemyCollision(player, rock, true);
@@ -291,9 +295,8 @@ function meleeAttack(scene) {
     .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
   const rockTarget = scene.rockProjectiles.getChildren()
     .filter(rock => rock.active && rock.body?.enable && !rock.reflected &&
-      (rock.x - player.x) * direction >= -4 &&
-      (rock.x - player.x) * direction <= 56 &&
-      Math.abs(rock.body.center.y - centerY) < 38)
+      Math.abs(rock.x - player.x) <= 68 &&
+      Math.abs(rock.body.center.y - centerY) < 46)
     .sort((a, b) => Math.abs(a.x - player.x) - Math.abs(b.x - player.x))[0];
 
   // Give each technique a distinct slash trail.
@@ -331,13 +334,13 @@ function meleeAttack(scene) {
   scene.time.delayedCall(120, () => { if (player.active) player.clearTint(); });
   playSwordSound(scene, 'swing', combo);
 
+  // Parry at the strike itself so a fast incoming rock cannot hit the player
+  // during the sword's decorative follow-through delay.
+  if (rockTarget) reflectRock(scene, rockTarget);
   if (!target && !rockTarget) return;
   // Resolve contacts during the visible blade follow-through.
   scene.time.delayedCall(130, () => {
     if (scene.isLevelFinished) return;
-    if (rockTarget?.active && rockTarget.body?.enable && !rockTarget.reflected) {
-      reflectRock(scene, rockTarget);
-    }
     if (target?.active && target.body?.enable) {
       if (target.isBoss) return;
       damageEnemy(scene, target, combo === 3, true);
@@ -353,11 +356,13 @@ function reflectRock(scene, rock) {
   if (!target) return;
 
   rock.reflected = true;
+  rock.returnTarget = target;
   rock.setTint(0x8ee6ff).setDepth(13);
   rock.body.setAllowGravity(false);
-  const dx = target.body.center.x - rock.x;
-  const dy = target.body.center.y - rock.y;
-  rock.setVelocity(Math.sign(dx || 1) * 330, Phaser.Math.Clamp(dy * 1.4, -170, 170));
+  const dx = target.body.center.x - rock.body.center.x;
+  const dy = target.body.center.y - rock.body.center.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  rock.setVelocity(dx / distance * 390, dy / distance * 390);
   scene.showFloatingText(rock.x, rock.y - 12, 'RETURN!', '#9fe8ff');
   playSwordSound(scene, 'impact', 0);
 }
@@ -377,7 +382,7 @@ function patrolBounds(scene, column, row) {
 export function setupEnemy(scene, enemy, index, variant = index % 3) {
   // Put each guardian on a nearby surface rather than letting a spawn over a pit fall.
   let surface = null, best = Infinity;
-  scene.groundLayer.forEachTile(tile => {
+  if (!scene.level8Sanctum && !scene.level9Highlands) scene.groundLayer.forEachTile(tile => {
     if (tile.y < 3 || tile.y > 11 || !patrolSurface(scene, tile.x, tile.y)) return;
     const bounds = patrolBounds(scene, tile.x, tile.y);
     if (bounds.last - bounds.first < 2) return;
@@ -417,12 +422,31 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
     const ahead = Math.floor(aheadX / width);
     const wall = body.blocked.left || body.blocked.right ||
       (!scene.level6Terrain && scene.groundLayer.getTileAt(ahead, row - 1)?.collides);
-    const gap = scene.level6Terrain
+  const hasLevel8Support = () => {
+    const state = scene.level8Sanctum;
+    if (!state) return false;
+    return state.supportPlatforms.some(platform => platform.active && platform.body?.enable &&
+      aheadX >= platform.body.left - 3 && aheadX <= platform.body.right + 3 &&
+      Math.abs(platform.body.top - body.bottom) <= 16);
+  };
+  const hasLevel9Support = () => {
+    const state = scene.level9Highlands;
+    if (!state) return false;
+    const ledgeSupport = state.terrain.getChildren().some(platform => platform.active &&
+      platform.body?.enable && aheadX >= platform.body.left - 3 &&
+      aheadX <= platform.body.right + 3 && Math.abs(platform.body.top - body.bottom) <= 16);
+    const logSupport = state.logs.some(log => log.image.active && log.image.body?.enable &&
+      !log.sinking && aheadX >= log.image.body.left - 3 &&
+      aheadX <= log.image.body.right + 3 && Math.abs(log.image.body.top - body.bottom) <= 16);
+    return ledgeSupport || logSupport;
+  };
+  const gap = scene.level9Highlands ? !hasLevel9Support()
+    : scene.level8Sanctum ? !hasLevel8Support() : scene.level6Terrain
       ? !scene.level6Terrain.hasSupport(aheadX, body.bottom)
       : !scene.groundLayer.getTileAt(ahead, row)?.collides;
     if (body.left <= 2 || body.right >= scene.map.widthInPixels - 2) {
       enemy.patrolDirection = body.left <= 2 ? 1 : -1;
-    } else if (scene.level6Terrain) {
+    } else if (scene.level6Terrain || scene.level8Sanctum || scene.level9Highlands) {
       if (wall || gap) enemy.patrolDirection *= -1;
     } else if (now >= enemy.nextJump) {
       // Decide once per encounter; a skipped jump turns back instead of retrying every frame.
@@ -504,6 +528,14 @@ export function retireRock(scene, rock) {
 export function updateCombat(scene) {
   const now = scene.time.now;
   meleeAttack(scene);
+  scene.rockProjectiles?.getChildren().forEach(rock => {
+    const target = rock.returnTarget;
+    if (!rock.active || !rock.reflected || !rock.body?.enable || !target?.active || !target.body?.enable) return;
+    const dx = target.body.center.x - rock.body.center.x;
+    const dy = target.body.center.y - rock.body.center.y;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    rock.setVelocity(dx / distance * 390, dy / distance * 390);
+  });
   scene.enemies.getChildren().forEach(enemy => {
     if (!enemy.active || !enemy.body?.enable) return;
     if (enemy.isBoss) { updateFinalBoss(scene, enemy, now); return; }

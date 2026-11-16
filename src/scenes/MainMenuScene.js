@@ -5,6 +5,7 @@ import { prepareCharacterSkin } from '../characterSkin.js';
 import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 import { addLogoJungle } from '../logoJungle.js';
 import { addMoatWater, createLongboat } from '../longboat.js';
+import { ensureIntroMenuMusic, stopIntroMenuMusic } from '../introMenuMusic.js';
 
 export class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
@@ -23,6 +24,7 @@ export class MainMenuScene extends Phaser.Scene {
 
   create() {
     fadeSceneIn(this);
+    ensureIntroMenuMusic(this);
     this.journeyStarted = false;
     prepareCharacterSkin(this);
     this.cameras.main.setBackgroundColor('#3a2822');
@@ -81,7 +83,10 @@ export class MainMenuScene extends Phaser.Scene {
       x: 850,
       duration: 1250,
       ease: 'Cubic.easeIn',
-      onComplete: () => fadeToScene(this, 'GameScene', data)
+      onComplete: () => {
+        stopIntroMenuMusic(this);
+        fadeToScene(this, 'GameScene', data);
+      }
     });
   }
 

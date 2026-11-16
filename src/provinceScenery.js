@@ -1,4 +1,6 @@
 import { addScrollingBackdrop } from './scrollingBackdrop.js';
+import { addLevel8SanctumBackdrop } from './level8Sanctum.js';
+import { addLevel9CraterBackdrop } from './level9Highlands.js';
 
 export function prepareProvinceTerrain(scene, province) {
   const key = `province-terrain-${province.id}`;
@@ -359,22 +361,27 @@ export function prepareProvinceSceneryTexture(scene, province) {
 }
 
 export function addProvinceScenery(scene, province) {
+  if (province.id === 'stung-treng') {
+    addLevel8SanctumBackdrop(scene);
+    return;
+  }
+  if (province.id === 'ratanakiri') {
+    addLevel9CraterBackdrop(scene);
+    return;
+  }
   const wideAngkor = province.id === 'siem-reap'
     && scene.textures.exists('angkor-painterly-background-wide');
   const forestPanorama = province.id === 'oddar-meanchey'
     && scene.textures.exists('level6-forest-platforms');
   const cliffTemplePanorama = province.id === 'preah-vihear'
     && scene.textures.exists('level7-preah-vihear-v2');
-  const mekongPanorama = province.id === 'stung-treng'
-    && scene.textures.exists('level8-stung-treng-mekong');
   const key = wideAngkor ? 'angkor-painterly-background-wide'
     : forestPanorama ? 'level6-forest-platforms'
       : cliffTemplePanorama ? 'level7-preah-vihear-v2'
-        : mekongPanorama ? 'level8-stung-treng-mekong'
       : prepareProvinceSceneryTexture(scene, province);
   const zoom = scene.cameras.main.zoom;
   if (province.id === 'banteay-meanchey') addScrollingBackdrop(scene, key, -20);
-  else if ((province.id === 'oddar-meanchey' && forestPanorama) || cliffTemplePanorama || mekongPanorama) {
+  else if ((province.id === 'oddar-meanchey' && forestPanorama) || cliffTemplePanorama) {
     scene.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     scene.add.image(scene.map.widthInPixels / 2, scene.map.heightInPixels / 2, key, '__BASE')
       .setDisplaySize(scene.map.widthInPixels, scene.map.heightInPixels)

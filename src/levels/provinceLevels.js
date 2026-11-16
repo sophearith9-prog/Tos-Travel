@@ -2,11 +2,13 @@ import { PROVINCE_ROUTE } from './provinceRoute.js';
 import { LEVEL6 } from './level6Layout.js';
 import { LEVEL7 } from './level7Layout.js';
 import { LEVEL8 } from './level8Layout.js';
+import { LEVEL9 } from './level9Layout.js';
 
 export function createProvinceLevel(province, index) {
   const width = province.id === 'oddar-meanchey' ? 45
     : province.id === 'preah-vihear' ? LEVEL7.width / 18
       : province.id === 'stung-treng' ? LEVEL8.width / 18
+        : province.id === 'ratanakiri' ? LEVEL9.width / 18
       : 200 + (index % 4) * 10;
   const coins = [], enemies = [];
   for (let x = 15; x < width - 27; x += 22) {
@@ -39,6 +41,10 @@ export function createProvinceLevel(province, index) {
     coins.splice(0, coins.length, ...LEVEL8.coins);
     enemies.splice(0, enemies.length, ...LEVEL8.enemies);
   }
+  if (province.id === 'ratanakiri') {
+    coins.splice(0, coins.length, ...LEVEL9.coins);
+    enemies.splice(0, enemies.length, ...LEVEL9.enemies);
+  }
   return { title: province.name, province, width, skyColor: province.sky,
     enemySpeed: 40 + Math.min(15, Math.floor(index / 4) * 3), coins, enemies };
 }
@@ -48,6 +54,7 @@ export function createProvinceMap(level) {
   if (level.province.id === 'oddar-meanchey') return createOddarMeancheyMap();
   if (level.province.id === 'preah-vihear') return createLevel7Map();
   if (level.province.id === 'stung-treng') return createLevel8Map();
+  if (level.province.id === 'ratanakiri') return createLevel9Map();
   const width = level.width, height = 15;
   const grid = Array.from({ length: height }, () => Array(width).fill(0));
   const routeIndex = PROVINCE_ROUTE.findIndex(p => p.id === level.province.id);
@@ -100,6 +107,17 @@ function createLevel7Map() {
 
 function createLevel8Map() {
   const width = LEVEL8.width / 18, height = LEVEL8.height / 18;
+  const grid = Array.from({ length: height }, () => Array(width).fill(0));
+  return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
+    orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',
+    layers: [{ id: 1, name: 'Platforms', type: 'tilelayer', width, height,
+      opacity: 1, visible: true, x: 0, y: 0, data: grid.flat() }],
+    tilesets: [{ firstgid: 1, name: 'tilemap_packed', tilewidth: 18, tileheight: 18,
+      tilecount: 180, columns: 20, image: 'tilemap_packed.png', imagewidth: 360, imageheight: 162 }] };
+}
+
+function createLevel9Map() {
+  const width = LEVEL9.width / 18, height = LEVEL9.height / 18;
   const grid = Array.from({ length: height }, () => Array(width).fill(0));
   return { width, height, tilewidth: 18, tileheight: 18, infinite: false,
     orientation: 'orthogonal', renderorder: 'right-down', version: '1.10', type: 'map',

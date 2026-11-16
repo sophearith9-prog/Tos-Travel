@@ -1,5 +1,5 @@
 import { label, button, playSound } from '../ui.js';
-import { audioSettings } from '../audioSettings.js';
+import { audioSettings, onAudioSettingsChange } from '../audioSettings.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
@@ -25,7 +25,10 @@ import { addLevel6Gate } from '../level6Gate.js';
 import { addLevel6Shop } from '../level6Shop.js';
 import { addLevel6WaterfallEffects } from '../level6Waterfall.js';
 import { LEVEL7, installLevel7Terrain } from '../levels/level7Layout.js';
-import { LEVEL8, installLevel8Terrain } from '../levels/level8Layout.js';
+import { LEVEL8 } from '../levels/level8Layout.js';
+import { installLevel8Sanctum, attachLevel8Sanctum, updateLevel8Sanctum } from '../level8Sanctum.js';
+import { LEVEL9 } from '../levels/level9Layout.js';
+import { installLevel9Terrain, attachLevel9Highlands, updateLevel9Highlands } from '../level9Highlands.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -39,6 +42,11 @@ export class GameScene extends Phaser.Scene {
     this.levelStartScore = this.score;
     this.levelStartCoins = this.coins;
     this.lives = data.lives !== undefined ? data.lives : 3;
+    this.maxHealth = 150;
+    this.health = data.health !== undefined
+      ? Phaser.Math.Clamp(data.health, 0, this.maxHealth)
+      : Math.min(this.maxHealth, this.lives * 50);
+    if (this.lives <= 3) this.lives = Math.ceil(this.health / 50);
     this.shields = data.shields !== undefined ? data.shields : 3;
     this.nextShieldRecoveryAt = 0;
     this.level3GuardianDefeated = false;
@@ -50,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.comboExpiresAt = 0;
     this.isInvulnerable = false;
     this.isLevelFinished = false;
+    this.isRunOver = false;
     this.isSlidingDownFlag = false;
     this.isEnteringCastle = false;
     this.sprintKey = null;
@@ -77,7 +86,7 @@ export class GameScene extends Phaser.Scene {
       this.load.image('temple-part-source', 'assets/templepart.png');
     }
     const musicKey = this.currentLevel === 2 ? 'bgm-level-2' : 'bgm-default';
-    const musicFile = this.currentLevel === 2 ? 'skothom.mp3' : 'bgm.mp3';
+    const musicFile = this.currentLevel === 2 ? 'VdoGameMusic.mp3' : 'VdoGameMusic.mp3';
     this.load.audio(musicKey, `assets/audio/${musicFile}`);
     if (this.currentLevel === 2) {
       this.load.image('angkor-wat-level2', 'assets/angkor-wat-level2.png');
@@ -110,7 +119,10 @@ export class GameScene extends Phaser.Scene {
       this.load.image('level7-preah-vihear-v2', 'assets/level7-preah-vihear-v2.png');
     }
     if (this.currentLevel === 8) {
-      this.load.image('level8-stung-treng-mekong', 'assets/level8-stung-treng-mekong.png');
+      this.load.image('level8-sanctum-sky', 'assets/level8-sanctum-sky.png');
+    }
+    if (this.currentLevel === 9) {
+      this.load.image('level9-ratanakiri-crater', 'assets/level9-ratanakiri-crater.png');
     }
     if (this.currentLevel === 3) {
       this.load.image('angkor-sunset-level3', 'assets/angkor-sunset-level3-pixel.png');
@@ -149,6 +161,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.game.sound.stopByKey('intro-menu-music');
     fadeSceneIn(this, 520);
     prepareCharacterSkin(this);
     prepareEnemySkin(this);
@@ -218,7 +231,7 @@ export class GameScene extends Phaser.Scene {
     this.groundLayer = map.createLayer('Platforms', tilesets, 0, 0);
     if (this.groundLayer) {
       this.groundLayer.setCollisionByExclusion([-1]);
-      if (this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8) this.groundLayer.setAlpha(0);
+      if (this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9) this.groundLayer.setAlpha(0);
       if (this.currentLevel === 4) addLevel4PainterlyPlatforms(this, map);
     }
     if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
@@ -227,10 +240,12 @@ export class GameScene extends Phaser.Scene {
     this.level8Terrain = null;
     this.collisionGround = this.currentLevel === 6 ? installLevel6Terrain(this)
       : this.currentLevel === 7 ? installLevel7Terrain(this)
-        : this.currentLevel === 8 ? installLevel8Terrain(this) : this.groundLayer;
+        : this.currentLevel === 8 ? installLevel8Sanctum(this)
+          : this.currentLevel === 9 ? installLevel9Terrain(this) : this.groundLayer;
     if (this.currentLevel !== 1) addEnvironment(this, map);
     addFinishTemple(this, map);
-    this.finishFlag = this.currentLevel === 6 || this.currentLevel === 7 ? null : addFinishFlag(this, map);
+    this.finishFlag = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 9
+      ? null : addFinishFlag(this, map);
     this.level6Gate = this.currentLevel === 6 ? addLevel6Gate(this) : null;
     this.level6Shop = this.currentLevel === 6 ? addLevel6Shop(this) : null;
 
@@ -238,8 +253,10 @@ export class GameScene extends Phaser.Scene {
 
     // Spawn Player
     const customPlayer = this.textures.exists('player-character');
-    const startY = this.currentLevel === 6 ? LEVEL6.spawn.y : this.currentLevel === 7 ? LEVEL7.spawn.y : this.currentLevel === 8 ? LEVEL8.spawn.y : 150;
-    const startX = this.currentLevel === 6 ? LEVEL6.spawn.x : this.currentLevel === 7 ? LEVEL7.spawn.x : this.currentLevel === 8 ? LEVEL8.spawn.x : 50;
+    const startY = this.currentLevel === 6 ? LEVEL6.spawn.y : this.currentLevel === 7 ? LEVEL7.spawn.y
+      : this.currentLevel === 8 ? LEVEL8.spawn.y : this.currentLevel === 9 ? LEVEL9.spawn.y : 150;
+    const startX = this.currentLevel === 6 ? LEVEL6.spawn.x : this.currentLevel === 7 ? LEVEL7.spawn.x
+      : this.currentLevel === 8 ? LEVEL8.spawn.x : this.currentLevel === 9 ? LEVEL9.spawn.x : 50;
     this.player = customPlayer
       ? this.physics.add.sprite(startX, startY, 'player-character', 0)
       : this.physics.add.sprite(startX, startY, 'packed', 24);
@@ -262,7 +279,7 @@ export class GameScene extends Phaser.Scene {
     this.swordActionSprite = this.add.sprite(this.player.x, this.player.y, 'vireak-sword-actions', 0)
       .setOrigin(0.5, 0.625).setScale(24 / 256).setDepth(this.player.depth + 1).setVisible(false);
     this.physics.add.collider(this.player, this.collisionGround,
-      this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 ? null : this.hitCoinBlock,
+      this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? null : this.hitCoinBlock,
       this.currentLevel === 6 ? () => this.time.now >= this.level6DropUntil : null, this);
     if (this.level6Gate) this.physics.add.collider(this.player, this.level6Gate.blocker);
 
@@ -305,22 +322,26 @@ export class GameScene extends Phaser.Scene {
         enemy.setBounce(0);
         enemy.setCollideWorldBounds(true);
         enemy.setVelocityX(-this.enemySpeed);
-        enemy.hitPoints = stoneGuardian && this.currentLevel === 3 ? 5
+        enemy.level8Boss = Boolean(pos.level8Boss);
+        enemy.level9Boss = Boolean(pos.level9Boss);
+        enemy.hitPoints = enemy.level8Boss ? 8 : enemy.level9Boss ? 6 : stoneGuardian && this.currentLevel === 3 ? 5
           : stoneGuardian && this.currentLevel === 6 ? 6 : 3;
         enemy.maxHitPoints = enemy.hitPoints;
         enemy.nextHealthRecoveryAt = 0;
         if (stoneGuardian) {
           const isLevel6Guardian = this.currentLevel === 6;
-          const scale = (isLevel6Guardian ? 82 : 58) / 256;
+          const isLevel8Boss = enemy.level8Boss;
+          const isLevel9Boss = enemy.level9Boss;
+          const scale = (isLevel6Guardian || isLevel8Boss || isLevel9Boss ? 82 : 58) / 256;
           enemy.setScale(scale).setOrigin(0.5, 1);
-          const bodyWidth = isLevel6Guardian ? 32 : 24;
-          const bodyHeight = isLevel6Guardian ? 27 : 19;
+          const bodyWidth = isLevel6Guardian || isLevel8Boss || isLevel9Boss ? 32 : 24;
+          const bodyHeight = isLevel6Guardian || isLevel8Boss || isLevel9Boss ? 27 : 19;
           enemy.body.setSize(bodyWidth / scale, bodyHeight / scale)
             .setOffset((enemy.width - bodyWidth / scale) / 2, enemy.height - bodyHeight / scale);
           enemy.enemyKind = 'stone-guardian';
           enemy.setDepth(8);
+          if (isLevel6Guardian || isLevel8Boss || isLevel9Boss) enemy.isLargeGuardian = true;
           if (isLevel6Guardian) {
-            enemy.isLargeGuardian = true;
             enemy.guardianNameplate = this.add.text(enemy.x, enemy.y - 92, 'STONE GUARDIAN', {
               fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '8px',
               fontStyle: 'bold', color: '#ffe1a0', stroke: '#20170f', strokeThickness: 3
@@ -343,23 +364,30 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    if (this.currentLevel === 8) attachLevel8Sanctum(this);
+    if (this.currentLevel === 9) attachLevel9Highlands(this);
+
     this.physics.add.collider(this.enemies, this.collisionGround, null, (enemy, tile) => {
       // The giant lands on platform tops without getting trapped under low ceilings.
-      return !enemy.isBoss || (enemy.body.velocity.y >= 0 && enemy.body.bottom <= tile.pixelY + 12);
+      const platformTop = tile.body?.top ?? tile.pixelY ?? 0;
+      return !enemy.isBoss || (enemy.body.velocity.y >= 0 && enemy.body.bottom <= platformTop + 12);
     });
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
 
     // Finish Section: Flagpole Trigger Zone (width - 15) and Castle Door (width - 7)
-    const flagPixelX = this.currentLevel === 6 ? LEVEL6.finish.x : this.currentLevel === 7 ? LEVEL7.finish.x : this.currentLevel === 8 ? LEVEL8.finish.x : this.currentLevel === 1
+    const flagPixelX = this.currentLevel === 6 ? LEVEL6.finish.x : this.currentLevel === 7 ? LEVEL7.finish.x
+      : this.currentLevel === 8 ? LEVEL8.finish.x : this.currentLevel === 9 ? LEVEL9.finish.x : this.currentLevel === 1
       ? (map.width - 7) * 18 + 9
       : (map.width - 15) * 18 + 9;
     this.flagX = flagPixelX;
-    this.castleDoorX = this.currentLevel === 6 ? LEVEL6.finish.doorX : this.currentLevel === 7 ? LEVEL7.finish.doorX : this.currentLevel === 8 ? LEVEL8.finish.doorX : (map.width - 7) * 18 + 9;
+    this.castleDoorX = this.currentLevel === 6 ? LEVEL6.finish.doorX : this.currentLevel === 7 ? LEVEL7.finish.doorX
+      : this.currentLevel === 8 ? LEVEL8.finish.doorX : this.currentLevel === 9 ? LEVEL9.finish.doorX : (map.width - 7) * 18 + 9;
 
     // Extend in front of the solid pole so touching it always clears the level.
-    this.goal = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8
+    this.goal = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9
       ? this.add.zone(flagPixelX,
-        (this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : LEVEL8.finish.floorY) - 22, 28, 44)
+        (this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY
+          : this.currentLevel === 8 ? LEVEL8.finish.floorY : LEVEL9.finish.floorY) - 22, 28, 44)
       : this.add.zone(flagPixelX, 99, 48, 198);
     this.physics.add.existing(this.goal, true);
     this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
@@ -374,7 +402,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, false, 0.1,
       this.currentLevel === 4 ? 0 : 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.
-    this.cameras.main.setZoom(this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
+    this.cameras.main.setZoom(this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? 1 : this.currentLevel === 2 ? 1.6 : 2.2);
     if (this.currentLevel === 1) addScrollingBackdrop(this, 'banteay-temple-background', -19, 0.65, true);
     if (this.currentLevel === 2) installLevelTwoTrial(this);
     if (config.province) addProvinceScenery(this, config.province);
@@ -422,6 +450,38 @@ export class GameScene extends Phaser.Scene {
       music.setVolume(audioSettings.music ? 0.25 : 0);
       if (!music.isPlaying) music.play();
     }
+
+    // Apply music toggles (e.g. from the pause menu) to the track that is already loaded.
+    const syncMusic = () => {
+      if (this.isLevelFinished || this.isRunOver) return;
+      const track = this.sound.get(this.musicKey);
+      if (track) {
+        track.setVolume(audioSettings.music ? 0.25 : 0);
+        if (audioSettings.music && !track.isPlaying && !track.isPaused && !this.scene.isPaused()) track.play();
+      } else if (audioSettings.music && !this.scene.isPaused()) {
+        playSound(this, this.musicKey, { loop: true, volume: 0.25 });
+      }
+    };
+    const unsubscribeMusic = onAudioSettingsChange(syncMusic);
+    this.events.on('resume', syncMusic);
+    this.events.once('shutdown', () => {
+      unsubscribeMusic();
+      this.events.off('resume', syncMusic);
+    });
+  }
+
+  endRun() {
+    if (this.isRunOver) return;
+    this.isRunOver = true;
+    this.sound.stopByKey(this.musicKey);
+    this.scene.start('GameOverScene', {
+      level: this.currentLevel,
+      score: this.score,
+      coins: this.coins,
+      // Retrying restarts the stage, so it should not keep points earned during the failed attempt.
+      retryScore: this.levelStartScore,
+      retryCoins: this.levelStartCoins
+    });
   }
 
   pauseGame() {
@@ -817,15 +877,35 @@ export class GameScene extends Phaser.Scene {
       ...textStyle, fontSize: `${size}px`, color
     }).setOrigin(0, 0.5);
 
+    // Repeated fine gold trim ties the status groups into one readable HUD.
+    const hudFrame = this.add.graphics();
+    const plaque = (x, y, width, height, accent = 0xc79545) => {
+      hudFrame.fillStyle(0x07111b, 0.62).fillRoundedRect(x + 2, y + 3, width, height, 9);
+      hudFrame.fillStyle(0x101e2a, 0.91).fillRoundedRect(x, y, width, height, 9);
+      hudFrame.lineStyle(1, 0xe2bf78, 0.68).strokeRoundedRect(x + 0.5, y + 0.5, width - 1, height - 1, 9);
+      hudFrame.fillStyle(accent, 0.95).fillRoundedRect(x + 7, y + 7, 2, height - 14, 1);
+      hudFrame.fillStyle(0xf1d69d, 0.66).fillRect(x + 14, y + 5, width - 28, 1);
+    };
+    plaque(7, 5, 239, 54, 0xc94e58);
+    plaque(253, 5, 167, 42);
+    plaque(427, 5, 169, 42);
+    plaque(603, 5, 145, 42, 0xd5a446);
+    plaque(752, 7, 41, 41, 0xd5a446);
+    this.hudContainer.addAt(hudFrame, 0);
+
     this.vitalBars = this.add.graphics();
-    this.bloodLabel = hudText(13, 14, 'BLOOD', 8, '#ffdca0');
+    this.bloodLabel = hudText(17, 14, 'HEALTH', 8, '#ffdca0');
     this.shieldLabel = hudText(13, 33, 'SHIELD', 8, '#b9dcff');
-    this.levelText = hudText(268, 23, `STAGE ${this.currentLevel}/${TOTAL_LEVELS}`, 13, '#f4f1df');
-    this.scoreText = hudText(370, 23, String(this.score).padStart(5, '0'), 13, '#f4f1df');
-    this.coinsText = hudText(676, 23, String(this.coins).padStart(2, '0'), 15, '#fff4dc');
-    this.coinIcon = this.add.image(658, 23, 'khmer-coin', 2).setDisplaySize(19, 19);
+    this.levelText = hudText(269, 16, 'STAGE', 8, '#d8bf8b');
+    this.levelValueText = hudText(269, 32, `${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`, 13, '#f4f1df');
+    this.scoreLabel = hudText(443, 16, 'SCORE', 8, '#d8bf8b');
+    this.scoreText = hudText(443, 32, String(this.score).padStart(5, '0'), 13, '#f4f1df');
+    this.coinsLabel = hudText(619, 16, 'TREASURE', 8, '#d8bf8b');
+    this.coinsText = hudText(649, 32, String(this.coins).padStart(2, '0'), 14, '#fff4dc');
+    this.coinIcon = this.add.image(631, 32, 'khmer-coin', 2).setDisplaySize(17, 17);
     this.hudContainer.add([this.vitalBars, this.bloodLabel, this.shieldLabel,
-      this.levelText, this.scoreText, this.coinIcon, this.coinsText]);
+      this.levelText, this.levelValueText, this.scoreLabel, this.scoreText,
+      this.coinsLabel, this.coinIcon, this.coinsText]);
     this.drawVitalBars();
     this.extraLivesText = hudText(234, 33, '', 10, '#ffd078');
     this.characterNameText = hudText(13, 51, PLAYER_CHARACTER_NAME.toUpperCase(), 9, '#ffd078');
@@ -926,7 +1006,7 @@ export class GameScene extends Phaser.Scene {
       ? 1 - (this.nextShieldRecoveryAt - now) / 8000 : 0);
     drawMedallion(59, 15, false);
     drawMedallion(59, 37, true);
-    drawBar(7, this.lives / 3, 0xc73854, 0xff8091);
+    drawBar(7, this.health / this.maxHealth, 0xc73854, 0xff8091);
     drawBar(26, (this.shields + recharge) / 3, 0x536dbb, 0x9bcaff);
   }
 
@@ -1100,10 +1180,13 @@ export class GameScene extends Phaser.Scene {
   collectLifeItem(player, food) {
     if (this.isLevelFinished || !food.active || !food.body.enable) return;
     food.disableBody(true, true);
-    this.lives++;
+    const restoredHealth = this.health < this.maxHealth;
+    if (restoredHealth) this.restoreBlood(50);
+    else this.lives++;
     this.updateHUD();
     playSound(this, 'coin', { volume: 0.6 });
-    this.showFloatingText(food.x, food.y - 12, '+1 LIFE', '#86efac');
+    this.showFloatingText(food.x, food.y - 12,
+      restoredHealth ? '+50 BLOOD' : '+1 LIFE', '#86efac');
     food.destroy();
   }
 
@@ -1213,7 +1296,7 @@ export class GameScene extends Phaser.Scene {
     this.score += points;
     if (this.comboCount > 1) {
       this.showFloatingText(x, y, `${this.comboCount} CHAIN  +${points}`, multiplier > 1 ? '#ffcf70' : '#ffe39a');
-      this.comboText.setText(`COMBO ${this.comboCount}  Â·  x${multiplier}`).setAlpha(1);
+      this.comboText.setText(`COMBO ${this.comboCount}  ·  x${multiplier}`).setAlpha(1);
       this.tweens.killTweensOf(this.comboText);
       this.tweens.add({ targets: this.comboText, alpha: 0.35, duration: 900, delay: 800 });
     } else {
@@ -1225,6 +1308,7 @@ export class GameScene extends Phaser.Scene {
 
   showFloatingText(x, y, message, color) {
     const text = this.add.text(x, y, message, {
+      fontFamily: 'Noto Sans Khmer, Khmer OS Battambang, Arial, sans-serif',
       fontSize: '10px',
       color: color,
       fontStyle: 'bold',
@@ -1242,17 +1326,48 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateHUD() {
-    this.levelText.setText(`${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`);
+    this.levelValueText.setText(`${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`);
     this.scoreText.setText(String(this.score).padStart(5, '0'));
     this.coinsText.setText(String(this.coins).padStart(2, '0'));
     this.drawVitalBars();
   }
 
+  restoreBlood(amount) {
+    const previous = this.health;
+    this.health = Math.min(this.maxHealth, this.health + amount);
+    if (this.lives <= 3) this.lives = Math.ceil(this.health / 50);
+    return this.health - previous;
+  }
+
+  respawnAtLevel8Checkpoint() {
+    const checkpoint = this.level8Checkpoint;
+    if (this.currentLevel !== 8 || !checkpoint || !this.player?.body?.enable) return false;
+    this.lives = 1;
+    this.health = 50;
+    this.shields = Math.max(1, this.shields);
+    this.player.setPosition(checkpoint.x, checkpoint.y).setVelocity(0, 0).setAlpha(0.5);
+    this.player.body.reset(checkpoint.x, checkpoint.y);
+    this.player.body.setAllowGravity(true);
+    this.isInvulnerable = true;
+    this.time.delayedCall(1800, () => {
+      if (!this.player?.active) return;
+      this.isInvulnerable = false;
+      this.player.setAlpha(1);
+    });
+    this.updateHUD();
+    this.showFloatingText(checkpoint.x, checkpoint.y - 25,
+      'MARKET CHECKPOINT  ·  RESTORED', '#c9f1bd');
+    return true;
+  }
+
   handlePlayerEnemyCollision(player, enemy, forceDamage = false) {
-    if (this.isLevelFinished || this.level6Shop?.busy) return;
+    if (this.isLevelFinished || this.isRunOver || this.level6Shop?.busy || this.level8Shop?.busy) return;
 
     const isFalling = player.body.velocity.y > 0;
-    const isAbove = (player.body.bottom - enemy.body.top) < 10;
+    // Projectiles and timed hazards can call this handler without being Arcade
+    // bodies. Use their y coordinate when no physics body is available.
+    const enemyTop = enemy?.body?.top ?? enemy?.y ?? player.body.bottom;
+    const isAbove = (player.body.bottom - enemyTop) < 10;
 
     if (!forceDamage && isFalling && isAbove) {
       playSound(this, 'stomp', { volume: 0.5 });
@@ -1278,18 +1393,18 @@ export class GameScene extends Phaser.Scene {
         this.shields--;
         this.nextShieldRecoveryAt = this.shields < 3 ? this.time.now + 8000 : 0;
       } else {
-        this.lives--;
+        if (this.lives > 3) this.lives--;
+        else {
+          this.health = Math.max(0, this.health - 50);
+          this.lives = Math.ceil(this.health / 50);
+        }
         if (!this.nextShieldRecoveryAt) this.nextShieldRecoveryAt = this.time.now + 8000;
       }
       this.updateHUD();
 
-      if (this.lives <= 0) {
-        this.sound.stopByKey(this.musicKey);
-        this.scene.start('GameOverScene', {
-          level: this.currentLevel,
-          score: this.score,
-          coins: this.coins
-        });
+      if (this.lives <= 0 || this.health <= 0) {
+        if (this.respawnAtLevel8Checkpoint()) return;
+        this.endRun();
       } else {
         this.isInvulnerable = true;
         player.setVelocityY(-180);
@@ -1313,6 +1428,17 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.currentLevel === 8 && !this.level8Sanctum?.exitOpen) {
+      const state = this.level8Sanctum;
+      const switches = state?.switches.filter(Boolean).length || 0;
+      const hint = state?.bossDefeated ? `ACTIVATE SANCTUM SWITCHES ${switches}/3` : 'DEFEAT THE NAGA SHADE';
+      this.showFloatingText(player.x, player.y - 24, hint, '#ffe3a1');
+      return;
+    }
+    if (this.currentLevel === 9 && !this.level9Highlands?.bossDefeated) {
+      this.showFloatingText(player.x, player.y - 24, 'DEFEAT THE CRATER WARDEN', '#ffe3a1');
+      return;
+    }
     if (this.currentLevel === 6 && this.level6EnemiesDefeated < 5) {
       this.showFloatingText(player.x, player.y - 24,
         `DEFEAT GUARDIANS ${this.level6EnemiesDefeated}/5`, '#ffe3a1');
@@ -1367,7 +1493,7 @@ export class GameScene extends Phaser.Scene {
     player.play('player-jump');
     this.isSlidingDownFlag = true;
 
-    const finishFloorY = this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : this.currentLevel === 8 ? LEVEL8.finish.floorY : 198;
+    const finishFloorY = this.currentLevel === 6 ? LEVEL6.finish.floorY : this.currentLevel === 7 ? LEVEL7.finish.floorY : this.currentLevel === 8 ? LEVEL8.finish.floorY : this.currentLevel === 9 ? LEVEL9.finish.floorY : 198;
     const targetY = finishFloorY - 26;
 
     this.tweens.add({
@@ -1427,7 +1553,8 @@ export class GameScene extends Phaser.Scene {
           ? LEVEL6.finish.floorY - 120 + Math.random() * 30
           : this.currentLevel === 7 ? LEVEL7.finish.floorY - 120 + Math.random() * 30
             : this.currentLevel === 8 ? LEVEL8.finish.floorY - 120 + Math.random() * 30
-              : 60 + Math.random() * 30;
+              : this.currentLevel === 9 ? LEVEL9.finish.floorY - 120 + Math.random() * 30
+                : 60 + Math.random() * 30;
         this.createFireworkSparkles(fx, fy, colors[f % colors.length]);
       });
     }
@@ -1457,11 +1584,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (!this.player) return;
+    if (!this.player || this.isRunOver) return;
 
     this.drawVitalBars();
     this.level6Water?.update(delta);
+    updateLevel8Sanctum(this, delta);
     if (this.level6Shop?.update()) return;
+    if (this.level8Shop?.update()) return;
     this.updateLevel6GuardianDisplay();
 
     if (!this.isLevelFinished && this.lives > 0 && this.shields < 3 &&
@@ -1483,6 +1612,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.isLevelFinished) return;
+
+    if (updateLevel9Highlands(this, delta)) return;
 
     if (this.templeEntrance?.update()) return;
 
@@ -1508,7 +1639,8 @@ export class GameScene extends Phaser.Scene {
     const jumpPressed = Boolean(jump && !this.jumpInputDown);
     this.jumpInputDown = Boolean(jump);
     const sprinting = Boolean(this.sprintKey?.isDown);
-    const moveSpeed = sprinting ? (this.currentLevel === TOTAL_LEVELS ? 230 : 200) : 150;
+    const baseMoveSpeed = sprinting ? (this.currentLevel === TOTAL_LEVELS ? 230 : 200) : 150;
+    const moveSpeed = baseMoveSpeed * (this.time.now < (this.speedBoostUntil || 0) ? 1.35 : 1);
     const attacking = this.time.now < (this.meleeAnimationUntil || 0);
     const actionLocked = attacking;
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
@@ -1589,19 +1721,15 @@ export class GameScene extends Phaser.Scene {
       this.player.setVisible(true).setAlpha(1 - blend);
     } else {
       this.swordActionSprite.setVisible(false).setAlpha(1);
-      this.player.setVisible(true).setAlpha(1);
+      this.player.setVisible(true);
+      // Leave alpha alone while invulnerable so the damage blink stays visible.
+      if (!this.isInvulnerable) this.player.setAlpha(1);
     }
 
-    // Pit fall detection
-    const fallLimit = this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8
+    // Pit fall detection. Hand-built tall levels (6-9) fall off their own map height;
+    // Level 9 spawns at y=1068, so the classic 280px limit ended the run instantly.
+    const fallLimit = this.currentLevel >= 6 && this.currentLevel <= 9
       ? this.map.heightInPixels + 30 : 280;
-    if (this.player.y > fallLimit) {
-      this.sound.stopByKey(this.musicKey);
-      this.scene.start('GameOverScene', {
-        level: this.currentLevel,
-        score: this.score,
-        coins: this.coins
-      });
-    }
+    if (this.player.y > fallLimit && !this.respawnAtLevel8Checkpoint()) this.endRun();
   }
 }

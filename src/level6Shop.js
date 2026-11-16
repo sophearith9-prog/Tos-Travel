@@ -50,7 +50,7 @@ export function addLevel6Shop(scene) {
   const purchase = () => {
     if (!canUse || phase !== 'idle' || scene.time.now - lastPurchaseAt < 250) return;
     lastPurchaseAt = scene.time.now;
-    if (scene.lives >= MAX_BLOOD) {
+    if ((scene.health ?? scene.lives * 50) >= (scene.maxHealth ?? MAX_BLOOD * 50)) {
       scene.showFloatingText(x, floorY - 94, 'BLOOD IS FULL', '#ffdca0');
       return;
     }
@@ -97,7 +97,8 @@ export function addLevel6Shop(scene) {
           }
           if (itemSettled && player.body.blocked.down && Math.abs(distance) < 18 &&
               Math.abs(player.body.bottom - floorY) < 18) {
-            scene.lives = Math.min(MAX_BLOOD, scene.lives + 1);
+            if (scene.restoreBlood) scene.restoreBlood(50);
+            else scene.lives = Math.min(MAX_BLOOD, scene.lives + 1);
             scene.updateHUD();
             playSound(scene, 'coin', { volume: 0.6 });
             scene.showFloatingText(x, floorY - 60, '+1 BLOOD', '#ff9aa7');
@@ -110,7 +111,7 @@ export function addLevel6Shop(scene) {
         return true;
       }
       canUse = Math.abs(scene.player.x - x) < 62 && Math.abs(scene.player.y - floorY) < 75;
-      const full = scene.lives >= MAX_BLOOD;
+      const full = (scene.health ?? scene.lives * 50) >= (scene.maxHealth ?? MAX_BLOOD * 50);
       prompt.setText(full ? 'BLOOD FULL' : scene.coins >= ITEM_PRICE
         ? 'PRESS F / TAP · BUY' : 'NEED 5 COINS');
       prompt.setVisible(canUse);

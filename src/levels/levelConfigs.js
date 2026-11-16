@@ -145,6 +145,8 @@ PROVINCE_ROUTE.forEach((province, index) => {
 });
 
 LEVEL_CONFIGS[6].title = 'The Khmer Temple Gate';
+LEVEL_CONFIGS[8].title = 'The Ancient Floating Sanctuary & Market Ruins';
+LEVEL_CONFIGS[9].title = 'The Volcanic Crater Lake & Highland Jungle';
 
 // Spread the requested rock throwers across each stage; retain gold and green enemies.
 for (const [level, blackCount] of [[3, 1], [4, 2], [5, 3]]) {

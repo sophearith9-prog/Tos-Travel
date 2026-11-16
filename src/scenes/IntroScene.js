@@ -1,6 +1,7 @@
 import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
 import { prepareCharacterSkin } from '../characterSkin.js';
 import { createLongboat } from '../longboat.js';
+import { ensureIntroMenuMusic } from '../introMenuMusic.js';
 
 export class IntroScene extends Phaser.Scene {
   constructor() {
@@ -9,6 +10,9 @@ export class IntroScene extends Phaser.Scene {
   }
 
   preload() {
+    if (!this.cache.audio.exists('intro-menu-music')) {
+      this.load.audio('intro-menu-music', 'assets/audio/intro-menu.mp3');
+    }
     if (!this.textures.exists('intro-background')) {
       this.load.image('intro-background', 'assets/intro-temple-dusk.png');
     }
@@ -22,6 +26,7 @@ export class IntroScene extends Phaser.Scene {
 
   create() {
     this.finished = false;
+    ensureIntroMenuMusic(this);
     fadeSceneIn(this);
     prepareCharacterSkin(this);
     this.cameras.main.setBackgroundColor('#4c2924');
