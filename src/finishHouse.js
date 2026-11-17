@@ -13,6 +13,11 @@ const art = (hx, base, px, py) => ({ x: hx + (px - ART_W / 2) * K, y: base + (py
 const FRONT_FOOT = 1003, BACK_FOOT = 948, STAIR_FOOT = 1043;
 const STILT_FEET = [[142, FRONT_FOOT], [1340, FRONT_FOOT], [288, BACK_FOOT], [1191, BACK_FOOT], [615, STAIR_FOOT], [868, STAIR_FOOT]];
 const SINK = 4;   // world px the front stilts sink into the ground (hides any seam)
+// Under-house area in world units: art x 87-1396, from below the porch beam (art y 775) to just
+// under the ground line; `floor` is the ground line inside it.
+const UNDER_TOP = 775, UNDER_X0 = 87, UNDER_X1 = 1396;
+const UNDER_FLOOR = (FRONT_FOOT - UNDER_TOP) * K - SINK;   // the stilts sink SINK px, so the ground is that much higher
+const UNDER = { w: (UNDER_X1 - UNDER_X0) * K, h: UNDER_FLOOR + 4, floor: UNDER_FLOOR };
 
 // Top of the solid ground under world x (first colliding tile below the sky band).
 function groundTopAt(scene, x) {
@@ -89,6 +94,51 @@ function prepareTextures(scene) {
     ctx.fillStyle = '#b8744c'; ctx.fillRect(0, 0, 17, 1); ctx.fillRect(0, 9, 8, 1); ctx.fillRect(9, 9, 8, 1);
     ctx.fillStyle = '#7a4a2e'; for (const [x, y] of [[3, 3], [12, 5], [5, 12], [14, 14]]) ctx.fillRect(x, y, 2, 1);
   }, 'NEAREST');
+  // The shaded space under the house, between the stilts (art x 87-1396, y 775 down to the ground):
+  // dark earth, a hammock, two clay jars, a bicycle and a firewood stack. Drawn once at 3x.
+  canvas(scene, 'house-under', UNDER.w, UNDER.h, 3, ctx => {
+    const W = UNDER.w, H = UNDER.h, floor = UNDER.floor;
+    const shade = ctx.createLinearGradient(0, 0, 0, H);
+    shade.addColorStop(0, '#140d07'); shade.addColorStop(0.55, '#2a1d11'); shade.addColorStop(1, '#3b2a19');
+    ctx.fillStyle = shade; ctx.fillRect(0, 0, W, H);
+    // Packed earth floor with a few pebbles.
+    ctx.fillStyle = '#4a3420'; ctx.fillRect(0, floor - 2, W, H - floor + 2);
+    ctx.fillStyle = '#5c4229'; ctx.fillRect(0, floor - 2, W, 0.8);
+    ctx.fillStyle = '#6e5234'; for (const x of [6, 21, 29, 47, 58, 70, 88]) ctx.fillRect(x, floor - 1 + (x % 3) * 0.3, 1, 0.6);
+    // Hammock slung between the back stilt and the stair post (left bay).
+    ctx.strokeStyle = '#1a120a'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(16, 2.2); ctx.lineTo(19.5, 6.2); ctx.moveTo(36, 2.2); ctx.lineTo(32.5, 6.2); ctx.stroke();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = '#1a120a';
+    ctx.beginPath(); ctx.moveTo(19, 6); ctx.quadraticCurveTo(26, 12, 33, 6); ctx.stroke();
+    ctx.lineWidth = 1.7; ctx.strokeStyle = '#7a3a3e';
+    ctx.beginPath(); ctx.moveTo(19, 6); ctx.quadraticCurveTo(26, 11.6, 33, 6); ctx.stroke();
+    ctx.lineWidth = 0.5; ctx.strokeStyle = '#c9a050';
+    ctx.beginPath(); ctx.moveTo(20, 6.4); ctx.quadraticCurveTo(26, 11, 32, 6.4); ctx.stroke();
+    // Two clay jars in the shade (left bay).
+    for (const [x, h] of [[10.5, 6], [14.6, 4.6]]) {
+      ctx.fillStyle = '#1c0f08'; ctx.beginPath(); ctx.ellipse(x, floor - h / 2, h * 0.48, h / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#a5552f'; ctx.beginPath(); ctx.ellipse(x, floor - h / 2, h * 0.4, h / 2 - 0.4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#d98a5e'; ctx.fillRect(x - h * 0.22, floor - h + 0.8, 0.7, h * 0.4);
+      ctx.fillStyle = '#1c0f08'; ctx.fillRect(x - 0.9, floor - h - 0.4, 1.8, 0.8);
+    }
+    // Bicycle leaning in the right bay.
+    ctx.lineWidth = 0.7; ctx.strokeStyle = '#8c7a62';
+    for (const cx of [65.5, 73.5]) { ctx.beginPath(); ctx.arc(cx, floor - 2.8, 2.6, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.strokeStyle = '#9fb6cf'; ctx.lineWidth = 0.65;
+    ctx.beginPath(); ctx.moveTo(65.5, floor - 2.8); ctx.lineTo(69, floor - 2.8); ctx.lineTo(72, floor - 6.6); ctx.lineTo(67.6, floor - 6.6); ctx.closePath();
+    ctx.moveTo(69, floor - 2.8); ctx.lineTo(67.2, floor - 7.4); ctx.moveTo(72, floor - 6.6); ctx.lineTo(73.5, floor - 2.8); ctx.moveTo(72, floor - 6.6); ctx.lineTo(71.4, floor - 8); ctx.stroke();
+    ctx.fillStyle = '#2a1d11'; ctx.fillRect(66.3, floor - 7.9, 1.9, 0.6); ctx.fillRect(70.6, floor - 8.3, 1.8, 0.5);
+    // Firewood stack (log ends) by the right back stilt.
+    for (const [x, y] of [[85.6, 1.3], [87.9, 1.3], [90.2, 1.3], [86.7, 3.3], [89, 3.3], [87.9, 5.3]]) {
+      ctx.fillStyle = '#1c0f08'; ctx.beginPath(); ctx.arc(x, floor - y, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#b8874c'; ctx.beginPath(); ctx.arc(x, floor - y, 0.95, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e4bf84'; ctx.beginPath(); ctx.arc(x, floor - y, 0.45, 0, Math.PI * 2); ctx.fill();
+    }
+    // Soft fade at the very top so it tucks under the porch beam.
+    const top = ctx.createLinearGradient(0, 0, 0, 3);
+    top.addColorStop(0, 'rgba(10, 6, 3, .9)'); top.addColorStop(1, 'rgba(10, 6, 3, 0)');
+    ctx.fillStyle = top; ctx.fillRect(0, 0, W, 3);
+  });
   // Pixel-art village props.
   canvas(scene, 'prop-jar', 10, 12, 2, ctx => {
     const px = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
@@ -121,11 +171,33 @@ function prepareTextures(scene) {
   }, 'NEAREST');
   const chicken = scene.textures.get('prop-chicken');
   if (!chicken.has('stand')) { chicken.add('stand', 0, 0, 0, 18, 16); chicken.add('peck', 0, 18, 0, 18, 16); }
-  canvas(scene, 'prop-cloth', 5, 7, 2, ctx => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 5, 7); ctx.fillStyle = '#d9d9d9'; ctx.fillRect(0, 0, 5, 0.8); });
-  canvas(scene, 'prop-krama', 5, 7, 2, ctx => {
-    ctx.fillStyle = '#f2ead8'; ctx.fillRect(0, 0, 5, 7); ctx.fillStyle = '#b8323a';
-    for (let y = 0; y < 7; y += 2) for (let x = (y / 2) % 2; x < 5; x += 2) ctx.fillRect(x, y, 1, 1);
-    ctx.fillRect(0, 6, 5, 1);
+  // Laundry: a red-and-white checked krama with fringe, an indigo sarong with a woven band,
+  // and a saffron cloth; each with folds, shading and a wooden peg.
+  const garment = (key, w, h, draw) => canvas(scene, key, w, h, 4, ctx => {
+    draw(ctx);
+    ctx.fillStyle = 'rgba(0, 0, 0, .18)'; ctx.fillRect(w - 0.8, 0, 0.8, h);              // shaded edge
+    ctx.fillStyle = 'rgba(255, 255, 255, .18)'; ctx.fillRect(0, 0, 0.6, h);
+    ctx.fillStyle = '#6b4a26'; ctx.fillRect(w / 2 - 0.5, -0.2, 1, 1.6);                  // wooden peg
+  });
+  garment('prop-krama', 6, 10, ctx => {
+    ctx.fillStyle = '#f2ead8'; ctx.fillRect(0, 0, 6, 9);
+    ctx.fillStyle = '#b8323a';
+    for (let y = 0; y < 9; y += 1.5) for (let x = (y / 1.5) % 2 ? 0.75 : 0; x < 6; x += 1.5) ctx.fillRect(x, y, 0.75, 0.75);
+    ctx.fillStyle = '#8f2430'; ctx.fillRect(0, 1.5, 6, 0.5); ctx.fillRect(0, 7, 6, 0.5);
+    ctx.fillStyle = '#f2ead8'; for (let x = 0.2; x < 6; x += 0.8) ctx.fillRect(x, 9, 0.35, 1);   // fringe
+  });
+  garment('prop-sarong', 7, 11, ctx => {
+    const g = ctx.createLinearGradient(0, 0, 7, 0);
+    g.addColorStop(0, '#2c4f86'); g.addColorStop(0.5, '#3d64a3'); g.addColorStop(1, '#2a4678');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 7, 11);
+    ctx.fillStyle = '#e2b84a'; ctx.fillRect(0, 7.5, 7, 1);
+    ctx.fillStyle = '#b8323a'; for (let x = 0.4; x < 7; x += 1.4) ctx.fillRect(x, 7.7, 0.6, 0.6);
+    ctx.fillStyle = 'rgba(10, 20, 50, .35)'; ctx.fillRect(2.2, 0, 0.6, 11); ctx.fillRect(4.6, 0, 0.6, 11);   // folds
+  });
+  garment('prop-saffron', 5, 8, ctx => {
+    ctx.fillStyle = '#e8a23a'; ctx.fillRect(0, 0, 5, 8);
+    ctx.fillStyle = '#c47e22'; ctx.fillRect(1.6, 0, 0.6, 8); ctx.fillRect(3.4, 0, 0.5, 8);
+    ctx.fillStyle = '#f6c56a'; ctx.fillRect(0.6, 0.6, 0.6, 7);
   });
   // Middle-layer silhouettes, drawn light grey so a haze tint colours them per stage.
   canvas(scene, 'mid-palm', 26, 62, 2, ctx => {
@@ -189,6 +261,9 @@ export function addFinishHouse(scene, map, { midground = true, softSky = false }
   const base = ground + (ART_H - FRONT_FOOT) * K + SINK;
   scene.textures.get('khmer-finish-house').setFilter(Phaser.Textures.FilterMode.LINEAR);
   const house = scene.add.image(hx, base, 'khmer-finish-house').setOrigin(0.5, 1).setDisplaySize(HOUSE_W, HOUSE_H).setDepth(-1);
+  // Shaded under-house space with hammock, jars, bicycle and firewood (behind the stilts, no collision).
+  const underTop = art(hx, base, UNDER_X0, UNDER_TOP);
+  scene.add.image(underTop.x, underTop.y, 'house-under').setOrigin(0, 0).setScale(1 / 3).setDepth(-1.02);
   scene.finishHouseGround = { ground, base, uneven, samples };
 
   // Uneven ground or a gap under the house: a flat laterite footing, solid to stand on.
@@ -273,22 +348,26 @@ export function addFinishHouse(scene, map, { midground = true, softSky = false }
 
   /* village props: in front of the house, behind the player, no physics */
   const prop = (key, x, frame, depth = -0.5) => scene.add.image(x, ground + 1, key, frame).setOrigin(0.5, 1).setScale(0.5).setDepth(depth);
-  prop('prop-banana', hx - 50, undefined, -0.6);
-  prop('prop-banana', hx + 60, undefined, -0.6).setFlipX(true);
-  prop('prop-fence', hx + 28, undefined, -0.55);
-  prop('prop-jar', hx - 22);
-  prop('prop-jar', hx - 31).setScale(0.38);
-  // Laundry line between two posts, cloth swaying in the breeze.
-  const lineL = hx - 84, lineR = hx - 60, lineY = ground - 15;
+  // At most four props around the house, all clear of the stairs and doorway.
+  prop('prop-banana', hx - 64, undefined, -0.6);
+  prop('prop-banana', hx + 66, undefined, -0.6).setFlipX(true);
+  // Laundry line well to the left of the stairs (between the flag and the house).
+  const lineL = hx - 106, lineR = hx - 84, lineY = ground - 15;
   const g = scene.add.graphics().setDepth(-0.58);
-  g.fillStyle(0x4d3d16).fillRect(lineL - 0.6, lineY - 1, 1.2, 16).fillRect(lineR - 0.6, lineY - 1, 1.2, 16);
-  g.lineStyle(0.5, 0x3a2a14, 1).beginPath().moveTo(lineL, lineY).lineTo((lineL + lineR) / 2, lineY + 1.6).lineTo(lineR, lineY).strokePath();
-  [['prop-krama', 0xffffff, 4], ['prop-cloth', 0x5b7fb8, 11], ['prop-cloth', 0xe2b84a, 17]].forEach(([key, tint, dx], i) => {
-    const cloth = scene.add.image(lineL + dx, lineY + 0.4 + (dx > 6 && dx < 18 ? 0.8 : 0.3), key).setOrigin(0.5, 0).setScale(0.5).setTint(tint).setDepth(-0.57);
+  // Bamboo posts with knots, and a sagging rope.
+  for (const x of [lineL, lineR]) {
+    g.fillStyle(0x4d3d16).fillRect(x - 0.9, lineY - 1.5, 1.8, ground - lineY + 2.5);
+    g.fillStyle(0xb39f55).fillRect(x - 0.5, lineY - 1.5, 1, ground - lineY + 2.5);
+    g.fillStyle(0x6e5a24); for (let y = lineY + 2; y < ground; y += 4) g.fillRect(x - 0.9, y, 1.8, 0.6);
+  }
+  g.lineStyle(0.45, 0x3a2a14, 1).beginPath().moveTo(lineL, lineY).lineTo((lineL + lineR) / 2, lineY + 1.6).lineTo(lineR, lineY).strokePath();
+  [['prop-krama', 5], ['prop-sarong', 11.5], ['prop-saffron', 18]].forEach(([key, dx], i) => {
+    const sag = 1.6 * (1 - Math.abs(dx - (lineR - lineL) / 2) / ((lineR - lineL) / 2));
+    const cloth = scene.add.image(lineL + dx, lineY + sag - 0.2, key).setOrigin(0.5, 0).setScale(0.25).setDepth(-0.57);
     scene.tweens.add({ targets: cloth, angle: { from: -7, to: 7 }, duration: 1200 + i * 230, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: i * 180 });
   });
-  // Two chickens that wander a little and peck.
-  for (const [cx, range] of [[hx - 38, 10], [hx + 44, 8]]) {
+  // A chicken that wanders a little and pecks (left of the house, away from the stairs).
+  for (const [cx, range] of [[hx - 76, 6]]) {
     const hen = scene.add.image(cx, ground + 0.5, 'prop-chicken', 'stand').setOrigin(0.5, 1).setScale(0.5).setDepth(-0.45);
     const wander = () => {
       if (!hen.active) return;

@@ -172,7 +172,10 @@ export class GameHUD {
 
   buildRight(mobile) {
     const s = this.scene;
-    let right = this.width - 6;
+    // The game area has 14px CSS rounded corners that clip; keep the top-right button clear of them.
+    const canvasW = s.game.canvas.getBoundingClientRect().width || 800;
+    const corner = 14 * (800 / canvasW) / this.uiScale;   // corner radius in HUD units
+    let right = this.width - Math.max(6, Math.round(corner * 0.5 + 3));
     const button = (icon, onPress, event = 'pointerdown') => {
       const x = right - 30;
       const box = s.add.container(x + 15, TOP + 16);
@@ -196,22 +199,20 @@ export class GameHUD {
     button(this.icons.pause, () => s.pauseGame());
     right -= GAP - 4;
 
-    // Stage pill: "11/28" with the province name beside it in small type
-    // (two-word names wrap onto two short lines to keep the pill compact).
+    // Stage pill: "11/28" with the province name beside it on ONE line. Long names use a short
+    // form ("BANTEAY M."); if the pill would still crowd the left HUD, the name is dropped.
     const stage = `${s.currentLevel}/${TOTAL_LEVELS}`;
-    let name = provinceName(s.currentLevel).toUpperCase();
-    if (name.length > 9 && name.includes(' ')) {
-      const words = name.split(' ');
-      let best = 1, bestDiff = Infinity;
-      for (let i = 1; i < words.length; i++) {
-        const diff = Math.abs(words.slice(0, i).join(' ').length - words.slice(i).join(' ').length);
-        if (diff < bestDiff) { bestDiff = diff; best = i; }
-      }
-      name = `${words.slice(0, best).join(' ')}
-${words.slice(best).join(' ')}`;
-    }
+    const full = provinceName(s.currentLevel).toUpperCase();
+    const short = full.length > 10 && full.includes(' ')
+      ? `${full.split(' ')[0]} ${full.split(' ').slice(-1)[0][0]}.`.replace(/^(.{0,9}).*? (\S\.)$/, '$1 $2')
+      : full;
     const stageText = pixelText(s, 0, 0, stage, 2, 0xf4f1df).setOrigin(0, 0.5);
+    let name = short;
     const nameText = pixelText(s, 0, 0, name, 1, 0xe2c88a).setOrigin(0, 0.5);
+    const leftEnd = 176;                       // portrait + hearts + shield, in HUD units
+    const digitsW = n => { const t = pixelText(s, 0, 0, '0'.repeat(n), 2); const w = Math.ceil(t.width); t.destroy(); return w; };
+    const reserved = 2 * GAP + (35 + digitsW(3)) + (35 + digitsW(6));   // coin + score pills left of the stage pill
+    if (right - (stageText.width + nameText.width + 22) - reserved < leftEnd) { name = ''; nameText.setText(''); }
     const stageW = Math.ceil(stageText.width + (name ? nameText.width + 6 : 0)) + 16;
     const stageX = right - stageW;
     this.container.add(pill(s, stageX, TOP, stageW));

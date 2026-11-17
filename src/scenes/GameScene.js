@@ -26,7 +26,7 @@ import { touchControls } from '../mobileControls.js';
 import { installCombat, setupEnemy, updateCombat, damageEnemy } from '../combat.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { createProvinceMap } from '../levels/provinceLevels.js';
-import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles, addLevel4PainterlyPlatforms } from '../provinceScenery.js';
+import { addProvinceScenery, prepareProvinceTerrain, prepareLevel4AtlasTiles, addLevel4PainterlyPlatforms, addBanteayGroundEdge } from '../provinceScenery.js';
 import { addScrollingBackdrop } from '../scrollingBackdrop.js';
 import { installFinalBoss } from '../finalBoss.js';
 import { addTempleEntrance } from '../templeEntrance.js';
@@ -113,6 +113,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    // Optional hand-made elephant sprite sheet (4 frames, 72 x 52). If it is missing the
+    // mechanic draws its own elephant (src/mechanics/elephantPlatform.js).
+    if (this.layout?.mechanics?.some(m => m.type === 'elephantPlatform') && !this.textures.exists('mech-elephant')
+        && !this.registry.get('mech-elephant-missing')) {
+      this.load.spritesheet('mech-elephant', 'assets/mech-elephant.png', { frameWidth: 72, frameHeight: 52 });
+      this.load.once('loaderror', file => { if (file.key === 'mech-elephant') this.registry.set('mech-elephant-missing', true); });
+    }
     if (!this.textures.exists('nokor-adventure-logo')) {
       this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
     }
@@ -291,6 +298,8 @@ export class GameScene extends Phaser.Scene {
       this.groundLayer.setCollisionByExclusion([-1]);
       if (this.layout || this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9) this.groundLayer.setAlpha(0);
       if (this.currentLevel === 4) addLevel4PainterlyPlatforms(this, map);
+      // Before the player exists, so the mossy lip draws above the tiles but behind the hero.
+      if (config.province?.id === 'banteay-meanchey') addBanteayGroundEdge(this);
     }
     if (this.currentLevel === 1) this.replaceLevelOneDirectionSigns();
     this.level6Terrain = null;
@@ -468,7 +477,9 @@ export class GameScene extends Phaser.Scene {
     this.goalLabel = null;
     // Camera setup with level sky color
     this.cameras.main.setBackgroundColor(config.skyColor || '#5c94fc');
-    this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+    // Banteay Chhmar: stop the camera higher so less flat ground and more temple art is on screen.
+    this.cameras.main.setBounds(0, 0, map.widthInPixels,
+      config.province?.id === 'banteay-meanchey' ? Math.min(map.heightInPixels, 236) : map.heightInPixels);
     this.cameras.main.startFollow(this.player, false, 0.1,
       this.currentLevel === 4 ? 0 : 0.1);
     // Frame Level 2 wider so its panoramic temple backdrop is more visible.

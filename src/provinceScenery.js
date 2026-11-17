@@ -3,6 +3,7 @@ import { addLevel8SanctumBackdrop } from './level8Sanctum.js';
 import { addLevel9CraterBackdrop } from './level9Highlands.js';
 import { BIOMES, PROVINCE_ENVIRONMENTS, mix } from './biomes/biomeConfig.js';
 import { addBiomeScenery } from './biomes/biomeScenery.js';
+import { drawCarvedSandstone, SANDSTONE } from './angkorGround.js';
 
 export function prepareProvinceTerrain(scene, province) {
   const key = `province-terrain-${province.id}`;
@@ -16,8 +17,11 @@ export function prepareProvinceTerrain(scene, province) {
   const forestTemple = province.id === 'oddar-meanchey';
   const banteay = province.id === 'banteay-meanchey';
   const env = PROVINCE_ENVIRONMENTS[province.id];
+  // Tile 48 (the end-of-stage staircase) is weathered carved sandstone on every province stage.
+  const stairs = () => drawCarvedSandstone(ctx, 47 % 20 * 18, Math.floor(47 / 20) * 18, banteay ? SANDSTONE.mossy : SANDSTONE.warm);
   if (env) {
     paintBiomeTerrain(ctx, BIOMES[env.biome], env.biome);
+    stairs();
     texture.refresh(); texture.setFilter(Phaser.Textures.FilterMode.NEAREST); return key;
   }
   for (const id of [1,2,3,21,22,23]) {
@@ -46,7 +50,86 @@ export function prepareProvinceTerrain(scene, province) {
       ctx.fillStyle=banteay?'#78804e':beach?'#e6ce97':forestTemple?'#63834b':stone?'#8d9265':'#51764b';for(let n=0;n<6;n++)ctx.fillRect(x+n*3,y+3,2,2);}
     ctx.restore();
   }
-  texture.refresh();texture.setFilter(forestTemple ? Phaser.Textures.FilterMode.NEAREST : Phaser.Textures.FilterMode.LINEAR);return key;
+  stairs();
+  if (banteay) paintBanteayGround(ctx);
+  texture.refresh();texture.setFilter(forestTemple || banteay ? Phaser.Textures.FilterMode.NEAREST : Phaser.Textures.FilterMode.LINEAR);return key;
+}
+
+// Banteay Chhmar ground: a mossy top course, then varied laterite/sandstone fill that darkens with
+// depth. Fill variants (ids from createProvinceMap): rows 12-14 use [22, 42], [62, 82], [102, 122].
+export const BANTEAY_FILL = [[22, 42], [62, 82], [102, 122]];
+function paintBanteayGround(ctx) {
+  const at = id => [((id - 1) % 20) * 18, Math.floor((id - 1) / 20) * 18];
+  const shades = [
+    { base: '#5c5641', stone: ['#77705a', '#6b654e'], lit: '#928a68', dark: '#3e3a2b' },
+    { base: '#46412f', stone: ['#5f5946', '#56503e'], lit: '#787052', dark: '#2e2b20' },
+    { base: '#322e22', stone: ['#46412f', '#3f3b2b'], lit: '#5a5440', dark: '#201e16' }
+  ];
+  const block = (x, y, dx, dy, w, h, s, i) => {
+    ctx.fillStyle = s.stone[i % 2]; ctx.fillRect(x + dx, y + dy, w, h);
+    ctx.fillStyle = s.lit; ctx.fillRect(x + dx, y + dy, w, 1);
+    ctx.fillStyle = s.dark; ctx.fillRect(x + dx, y + dy + h - 1, w, 1); ctx.fillRect(x + dx + w - 1, y + dy, 1, h);
+  };
+  BANTEAY_FILL.forEach((ids, row) => ids.forEach((id, variant) => {
+    const [x, y] = at(id), s = shades[row];
+    ctx.clearRect(x, y, 18, 18);
+    ctx.fillStyle = s.base; ctx.fillRect(x, y, 18, 18);
+    if (variant === 0) {
+      // Coursed blocks with a crack.
+      [[0, 0, 10, 6], [10, 0, 8, 6], [0, 6, 6, 6], [6, 6, 12, 6], [0, 12, 11, 6], [11, 12, 7, 6]].forEach((b, i) => block(x, y, ...b, s, i));
+      ctx.fillStyle = s.dark; ctx.fillRect(x + 8, y + 7, 1, 2); ctx.fillRect(x + 9, y + 9, 1, 2); ctx.fillRect(x + 10, y + 11, 1, 1);
+    } else {
+      // A carved piece (lotus band) above rubble.
+      block(x, y, 0, 0, 18, 8, s, 0);
+      ctx.fillStyle = s.dark; for (let k = 1; k < 18; k += 4) { ctx.fillRect(x + k, y + 3, 2, 2); }
+      ctx.fillStyle = s.lit; for (let k = 2; k < 18; k += 4) ctx.fillRect(x + k, y + 3, 1, 1);
+      [[0, 8, 5, 5], [5, 9, 6, 4], [11, 8, 7, 5], [1, 13, 7, 5], [8, 13, 5, 5], [13, 13, 5, 5]].forEach((b, i) => block(x, y, ...b, s, i + 1));
+    }
+  }));
+  // Top course (tiles 1-3): mossy sandstone cap.
+  for (const id of [1, 2, 3]) {
+    const [x, y] = at(id), s = shades[0];
+    ctx.clearRect(x, y, 18, 18);
+    ctx.fillStyle = s.base; ctx.fillRect(x, y, 18, 18);
+    [[0, 3, 9, 7], [9, 3, 9, 7], [0, 10, 6, 8], [6, 10, 12, 8]].forEach((b, i) => block(x, y, ...b, s, i));
+    ctx.fillStyle = '#3f5e26'; ctx.fillRect(x, y, 18, 4);
+    ctx.fillStyle = '#5a7a30'; ctx.fillRect(x, y, 18, 2);
+    ctx.fillStyle = '#7fa046'; for (let k = 0; k < 18; k += 3) ctx.fillRect(x + k, y, 2, 1);
+    ctx.fillStyle = '#3f5e26'; for (const [k, h] of [[2, 3], [7, 2], [12, 4], [16, 2]]) ctx.fillRect(x + k, y + 4, 1, h);
+  }
+}
+
+// Mossy grass lip with roots crawling over every walkable top edge (drawn above the ground
+// tiles, behind the player). Banteay Chhmar only.
+export function addBanteayGroundEdge(scene) {
+  const key = 'banteay-ground-edge';
+  if (!scene.textures.exists(key)) {
+    const t = scene.textures.createCanvas(key, 54, 12), c = t.context;
+    const px = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
+    px(0, 4, 54, 3, '#3f5e26'); px(0, 4, 54, 1, '#6f8f3a');
+    for (let x = 0; x < 54; x += 2) { const h = 1 + ((x * 7) % 5); px(x, 4 - h, 1, h, x % 6 ? '#5a7a30' : '#86a84c'); }
+    for (const [x, len, dir] of [[5, 7, 1], [19, 5, -1], [31, 8, 1], [44, 6, -1]]) {
+      for (let i = 0; i < len; i++) px(x + Math.round(Math.sin(i * 0.9) * dir), 6 + i * 0.75, 1.4, 1.2, i % 3 ? '#5a4128' : '#73553a');
+    }
+    for (const x of [11, 26, 38, 50]) { px(x, 1, 2, 2, '#a7c46a'); }
+    t.refresh(); t.setFilter(Phaser.Textures.FilterMode.NEAREST);
+  }
+  const layer = scene.groundLayer;
+  if (!layer) return;
+  const rows = new Map();
+  layer.forEachTile(tile => {
+    if (tile.index > 0 && tile.collides && tile.alpha > 0 && !(layer.getTileAt(tile.x, tile.y - 1)?.index > 0) && [1, 2, 3].includes(tile.index)) {
+      if (!rows.has(tile.y)) rows.set(tile.y, []);
+      rows.get(tile.y).push(tile.x);
+    }
+  });
+  for (const [y, xs] of rows) {
+    xs.sort((a, b) => a - b);
+    let start = xs[0], prev = xs[0];
+    const flush = (a, b) => scene.add.tileSprite(a * 18, y * 18 - 4, (b - a + 1) * 18, 12, key).setOrigin(0, 0).setDepth(0);
+    for (const x of xs.slice(1)) { if (x !== prev + 1) { flush(start, prev); start = x; } prev = x; }
+    flush(start, prev);
+  }
 }
 
 export function prepareLevel4AtlasTiles(scene) {

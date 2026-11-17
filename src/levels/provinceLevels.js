@@ -43,6 +43,11 @@ function createGeneratedProvinceLevel(province, index) {
     }
     if (x > 20 && enemies.length < 5) enemies.push({ x: (x + 7) * 18 + 9, y: 170 });
   }
+  if (province.id === 'banteay-meanchey') {
+    // Reward on top of the end staircase: an arc of five coins over the highest block.
+    const topX = (width - 21) * 18 + 9;
+    [[-18, 104], [-9, 96], [0, 93], [9, 96], [18, 104]].forEach(([dx, y]) => coins.push({ x: topX + dx, y }));
+  }
   if (province.id === 'siem-reap') {
     coins.length = 0;
     for (const [tileX, y] of [[14,126],[22,90],[39,126],[46,90],[54,126],
@@ -53,7 +58,7 @@ function createGeneratedProvinceLevel(province, index) {
     }
     enemies.splice(0, enemies.length,
       { x: 810, y: 150 }, { x: 1460, y: 110 }, { x: 2070, y: 150 },
-      { x: 2700, y: 110 }, { x: 3190, y: 150 });
+      { x: 2700, y: 110 }, { x: 2960, y: 150 });   // last guardian kept clear of the finish house
   }
   if (province.id === 'oddar-meanchey') {
     coins.splice(0, coins.length, ...LEVEL6.coins);
@@ -112,6 +117,13 @@ export function createProvinceMap(level) {
     for (let y = 0; y < 11; y++) for (let x = 12; x <= 29; x++) grid[y][x] = 0;
   }
   for (let i = 0; i < 4; i++) for (let y = 10 - i; y <= 10; y++) grid[y][width - 24 + i] = 48;
+  // Banteay Chhmar: vary the ground fill by depth (variants painted in provinceScenery.js).
+  if (level.province.id === 'banteay-meanchey') {
+    const FILL = [[22, 42], [62, 82], [102, 122]];
+    for (let y = 12; y < height; y++) for (let x = 0; x < width; x++) {
+      if (grid[y][x] === 22) grid[y][x] = FILL[Math.min(2, y - 12)][(x * 7 + y * 3) % 5 === 0 ? 1 : 0];
+    }
+  }
   const flag = width - 15;
   grid[2][flag] = 111;
   for (let y = 3; y < 10; y++) grid[y][flag] = 131;
