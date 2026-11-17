@@ -2,13 +2,22 @@ const STORAGE_KEY = 'angkor-adventure-audio';
 
 // On/off toggles:   music, sound (sound effects), ambienceOn
 // Volume levels 0..1: musicVolume, sfx, ambience (pause-menu sliders)
-const DEFAULTS = { music: true, sound: true, ambienceOn: true, musicVolume: 0.7, sfx: 0.8, ambience: 0.6 };
+// SETTINGS_VERSION 2: music files were loudness-normalized (-14 LUFS) and the music slider
+// became the real track volume; older saved music levels are reset to the new default.
+const SETTINGS_VERSION = 2;
+const DEFAULTS = { music: true, sound: true, ambienceOn: true, musicVolume: 0.8, sfx: 0.8, ambience: 0.6 };
 const level = (value, fallback) => (Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback);
 
 function readSettings() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if ((saved.version || 1) < SETTINGS_VERSION) {
+      // Old saves were tuned for the very quiet files: start music fresh at the default.
+      delete saved.musicVolume;
+      saved.music = true;
+    }
     return {
+      version: SETTINGS_VERSION,
       music: saved.music !== false,
       sound: saved.sound !== false,
       ambienceOn: saved.ambienceOn !== false,
@@ -17,12 +26,13 @@ function readSettings() {
       ambience: level(saved.ambience, DEFAULTS.ambience)
     };
   } catch {
-    return { ...DEFAULTS };
+    return { version: SETTINGS_VERSION, ...DEFAULTS };
   }
 }
 
 export const audioSettings = readSettings();
 const listeners = new Set();
+try { localStorage.setItem(STORAGE_KEY, JSON.stringify(audioSettings)); } catch { /* Storage may be unavailable. */ }
 
 function save() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(audioSettings)); } catch { /* Storage may be unavailable. */ }
@@ -41,11 +51,25 @@ export function setAudioLevel(kind, value) {
   save();
 }
 
-// Actual playback volume for a music track whose designed level is `base`.
-// The 70% default reproduces `base` exactly; 100% is about twice as loud (+6 dB).
-export function musicVolume(base) {
-  if (!audioSettings.music) return 0;
-  return base * Math.pow(audioSettings.musicVolume / DEFAULTS.musicVolume, 2);
+// Playback volume for music tracks: the slider value itself (files are normalized to
+// about -14 LUFS, so no extra per-track multipliers are needed).
+export function musicVolume() {
+  return audioSettings.music ? audioSettings.musicVolume : 0;
+}
+
+// Set a Phaser music track to the current music volume.
+// Phaser 3.60's setVolume() schedules the new gain at time 0, which is ignored when the
+// gain node already has later automation (after play/pause/resume), so the slider looked
+// saved but the real output never changed. Write the gain at the context's current time too.
+export function applyMusicVolume(track) {
+  if (!track) return;
+  const volume = musicVolume();
+  track.setVolume(volume);
+  const gain = track.volumeNode?.gain, context = track.manager?.context;
+  if (gain && context) {
+    gain.cancelScheduledValues(0);
+    gain.setValueAtTime(volume, context.currentTime);
+  }
 }
 
 export function onAudioSettingsChange(listener) {

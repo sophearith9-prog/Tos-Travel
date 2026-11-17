@@ -1,5 +1,5 @@
 import { label, button, playSound } from '../ui.js';
-import { audioSettings, onAudioSettingsChange, musicVolume } from '../audioSettings.js';
+import { audioSettings, onAudioSettingsChange, musicVolume, applyMusicVolume } from '../audioSettings.js';
 import { bakeGraphics } from '../bakeGraphics.js';
 import { addPitMarkers } from '../pitMarkers.js';
 import { getLayout } from '../levels/layoutRegistry.js';
@@ -519,21 +519,23 @@ export class GameScene extends Phaser.Scene {
     const otherMusicKey = this.musicKey === 'bgm-level-2' ? 'bgm-default' : 'bgm-level-2';
     this.sound.stopByKey(otherMusicKey);
     const music = this.sound.get(this.musicKey);
-    if (!music) playSound(this, this.musicKey, { loop: true, volume: musicVolume(0.25) });
+    if (!music) playSound(this, this.musicKey, { loop: true, volume: musicVolume() });
     else {
-      music.setVolume(musicVolume(0.25));
+      applyMusicVolume(music);
       if (!music.isPlaying) music.play();
     }
+    console.info(`[music] level ${this.currentLevel}: ${this.musicKey} volume=${musicVolume().toFixed(2)}`
+      + ` (setting ${Math.round(audioSettings.musicVolume * 100)}%, ${audioSettings.music ? 'on' : 'muted'}, audio ${this.sound.locked ? 'waiting for first tap/click' : 'unlocked'})`);
 
     // Apply music toggles (e.g. from the pause menu) to the track that is already loaded.
     const syncMusic = () => {
       if (this.isLevelFinished || this.isRunOver) return;
       const track = this.sound.get(this.musicKey);
       if (track) {
-        track.setVolume(musicVolume(0.25));   // music slider applies instantly, even while paused
+        applyMusicVolume(track);   // music slider applies instantly, even while paused
         if (audioSettings.music && !track.isPlaying && !track.isPaused && !this.scene.isPaused()) track.play();
       } else if (audioSettings.music && !this.scene.isPaused()) {
-        playSound(this, this.musicKey, { loop: true, volume: musicVolume(0.25) });
+        playSound(this, this.musicKey, { loop: true, volume: musicVolume() });
       }
     };
     const unsubscribeMusic = onAudioSettingsChange(syncMusic);

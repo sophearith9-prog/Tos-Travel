@@ -1,2 +1,5 @@
 # Temporary files from local browser/screenshot tooling
 .tmp-*
+
+# Local backups of music files before loudness normalization
+audio-originals/

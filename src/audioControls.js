@@ -1,4 +1,4 @@
-import { audioSettings, onAudioSettingsChange, setAudioEnabled } from './audioSettings.js';
+import { audioSettings, onAudioSettingsChange, setAudioEnabled, musicVolume, applyMusicVolume } from './audioSettings.js';
 
 const MUSIC_KEYS = ['bgm-default', 'bgm-level-2'];
 
@@ -17,7 +17,7 @@ export function installAudioControls(game) {
     soundButton.title = `Sound ${audioSettings.sound ? 'on' : 'off'}`;
     MUSIC_KEYS.forEach(key => {
       const music = game.sound.get(key);
-      if (music) music.setVolume(audioSettings.music ? 0.25 : 0);
+      if (music) applyMusicVolume(music);
     });
     if (!audioSettings.sound) {
       game.sound.sounds.forEach(sound => {
