@@ -1,4 +1,5 @@
 import { playSound } from '../ui.js';
+import { sfx } from '../audio/soundManager.js';
 
 // Checkpoint post. Touching it makes it the respawn point: pit falls return here (via
 // the last-safe-ground rule) and, when health runs out, the player revives here with
@@ -29,7 +30,7 @@ export default {
         if (Math.abs(player.x - x) < 16 && player.body.bottom <= floorY + 4 && player.body.bottom >= floorY - 110) {
           scene.activeCheckpoint = spot;
           scene.lastSafeGround = { ...spot };
-          playSound(scene, 'coin', { volume: 0.5, rate: 0.8 });
+          sfx(scene).play('checkpoint');
           scene.showFloatingText(x, floorY - 44, label, '#ffe39a');
         }
       },

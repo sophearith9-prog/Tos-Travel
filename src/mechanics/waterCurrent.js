@@ -1,5 +1,6 @@
 import { canvasTexture } from '../biomes/biomeArt.js';
 import { bodyInRect } from './helpers.js';
+import { sfx } from '../audio/soundManager.js';
 
 // Waterfall currents.
 //   { type: 'waterCurrent', x, y, width, height, dir = 'down' | 'up',
@@ -42,6 +43,8 @@ export default {
       u: (i * 0.37) % 1, k: (i * 0.61) % 1
     }));
     const cycle = pulse ? pulse.on + pulse.off : 0;
+    // Falling columns feed the waterfall ambience loop (louder as the player gets closer).
+    const unregister = down ? sfx(scene).addWaterfall({ x: x + width / 2, halfWidth: width / 2, top: y, bottom: y + height }) : null;
 
     return {
       get active() {
@@ -81,6 +84,7 @@ export default {
         }
       },
       destroy() {
+        unregister?.();
         column.destroy(); foam.forEach(f => f.destroy()); mist.forEach(m => m.dot.destroy());
       }
     };

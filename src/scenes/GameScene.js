@@ -1,5 +1,5 @@
 import { label, button, playSound } from '../ui.js';
-import { audioSettings, onAudioSettingsChange } from '../audioSettings.js';
+import { audioSettings, onAudioSettingsChange, musicVolume } from '../audioSettings.js';
 import { bakeGraphics } from '../bakeGraphics.js';
 import { addPitMarkers } from '../pitMarkers.js';
 import { getLayout } from '../levels/layoutRegistry.js';
@@ -7,6 +7,9 @@ import { layoutLevelConfig } from '../levels/provinceLevels.js';
 import { layoutMechanics } from '../levels/layoutFormat.js';
 import { installLayoutTerrain } from '../levels/layoutTerrain.js';
 import { installMechanics } from '../mechanics/index.js';
+import { GameHUD } from '../hud.js';
+import { sfx } from '../audio/soundManager.js';
+import { SFX_FILES } from '../audio/sfxLibrary.js';
 import { showStageClear } from '../levelClear.js';
 import { extendAngkorCauseway, installLevelTwoTrial } from '../levelTwoTrial.js';
 import { LEVEL_CONFIGS } from '../levels/levelConfigs.js';
@@ -175,6 +178,11 @@ export class GameScene extends Phaser.Scene {
       this.load.image('khmer-entrance-gate', 'assets/angkor-thom-finish-gate.png');
     }
     this.load.image('character-skin-source', 'assets/character-khmer.png');
+    // Sound-effect recordings listed in src/audio/sfxLibrary.js (SFX_FILES); anything not
+    // listed there uses its synthesized placeholder.
+    for (const [key, url] of Object.entries(SFX_FILES)) {
+      if (!this.cache.audio.exists(key)) this.load.audio(key, url);
+    }
     // Extra images a hand-made layout asks for.
     for (const { key, url } of this.layout?.assets || []) {
       if (!this.textures.exists(key)) this.load.image(key, url);
@@ -215,6 +223,7 @@ export class GameScene extends Phaser.Scene {
     const baseConfig = LEVEL_CONFIGS[this.currentLevel] || LEVEL_CONFIGS[1];
     const config = this.layout ? layoutLevelConfig(this.layout, baseConfig) : baseConfig;
     this.province = config.province;
+    this.levelConfig = config;
     const mapKey = 'level' + this.currentLevel;
     if (config.province && this.currentLevel !== 4) {
       this.cache.tilemap.remove(mapKey);
@@ -348,6 +357,10 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.physics.add.overlap(this.player, this.coinsGroup, this.collectCoin, null, this);
+    // Totals for the pause-menu summary (loose coins + coins hidden in ? blocks).
+    this.coinTotal = this.coinsGroup.getLength()
+      + [...(this.coinBlocks?.values() || [])].reduce((sum, block) => sum + (block.coins || 0), 0);
+    this.levelStartedAt = this.time.now;
     this.lifeItems = this.physics.add.group();
     this.physics.add.collider(this.lifeItems, this.collisionGround);
     this.physics.add.overlap(this.player, this.lifeItems, this.collectLifeItem, null, this);
@@ -421,6 +434,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.collisionGround, null, (enemy, tile) => {
       // The giant lands on platform tops without getting trapped under low ceilings.
       const platformTop = tile.body?.top ?? tile.pixelY ?? 0;
+      if (enemy.flying) return false;   // flying mechanics (e.g. diving kites) ignore terrain
       return !enemy.isBoss || (enemy.body.velocity.y >= 0 && enemy.body.bottom <= platformTop + 12);
     });
     this.physics.add.collider(this.player, this.enemies, this.handlePlayerEnemyCollision, null, this);
@@ -485,6 +499,8 @@ export class GameScene extends Phaser.Scene {
     this.showLevelIntroBanner(config.title);
     if (this.currentLevel === 1) this.startLevelOneBoatArrival();
     if (this.currentLevel === 1) this.time.delayedCall(450, () => playSound(this, 'rooster-morning', { volume: 0.7 }));
+    // Biome ambience, footstep surface and pause handling for sound effects.
+    sfx(this).attach(this);
     installCombat(this);
     // The final guardian is tied to the generated stage's geometry; a hand-made Stage 28
     // opts in with `finalBoss: true` or uses a miniBoss mechanic instead.
@@ -503,9 +519,9 @@ export class GameScene extends Phaser.Scene {
     const otherMusicKey = this.musicKey === 'bgm-level-2' ? 'bgm-default' : 'bgm-level-2';
     this.sound.stopByKey(otherMusicKey);
     const music = this.sound.get(this.musicKey);
-    if (!music) playSound(this, this.musicKey, { loop: true, volume: 0.25 });
+    if (!music) playSound(this, this.musicKey, { loop: true, volume: musicVolume(0.25) });
     else {
-      music.setVolume(audioSettings.music ? 0.25 : 0);
+      music.setVolume(musicVolume(0.25));
       if (!music.isPlaying) music.play();
     }
 
@@ -514,10 +530,10 @@ export class GameScene extends Phaser.Scene {
       if (this.isLevelFinished || this.isRunOver) return;
       const track = this.sound.get(this.musicKey);
       if (track) {
-        track.setVolume(audioSettings.music ? 0.25 : 0);
+        track.setVolume(musicVolume(0.25));   // music slider applies instantly, even while paused
         if (audioSettings.music && !track.isPlaying && !track.isPaused && !this.scene.isPaused()) track.play();
       } else if (audioSettings.music && !this.scene.isPaused()) {
-        playSound(this, this.musicKey, { loop: true, volume: 0.25 });
+        playSound(this, this.musicKey, { loop: true, volume: musicVolume(0.25) });
       }
     };
     const unsubscribeMusic = onAudioSettingsChange(syncMusic);
@@ -531,6 +547,7 @@ export class GameScene extends Phaser.Scene {
   endRun() {
     if (this.isRunOver) return;
     this.isRunOver = true;
+    sfx(this).play('death');
     this.sound.stopByKey(this.musicKey);
     this.scene.start('GameOverScene', {
       level: this.currentLevel,
@@ -544,12 +561,30 @@ export class GameScene extends Phaser.Scene {
 
   pauseGame() {
     if (!this.scene.isActive() || this.scene.isActive('PauseScene')) return;
+    sfx(this).play('pause');
     const music = this.sound.get(this.musicKey);
     const resumeMusic = !!music?.isPlaying;
     if (resumeMusic) music.pause();
     this.input.keyboard?.resetKeys();
+    this.hudContainer?.setVisible(false);
+    this.comboText?.setVisible(false);
+    this.events.once('resume', () => { this.hudContainer?.setVisible(true); this.comboText?.setVisible(true); });
     this.scene.launch('PauseScene', { resumeMusic });
     this.scene.pause();
+  }
+
+  // Numbers shown in the pause menu's level summary.
+  pauseSummary() {
+    const collected = Math.max(0, this.coins - (this.levelStartCoins || 0));
+    const seconds = Math.max(0, Math.floor((this.time.now - (this.levelStartedAt || 0)) / 1000));
+    return {
+      level: this.currentLevel,
+      name: this.levelConfig?.title || '',
+      coins: collected,
+      coinTotal: Math.max(collected, this.coinTotal || 0),
+      score: this.score,
+      time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+    };
   }
 
   showLevelIntroBanner(title) {
@@ -710,42 +745,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   playBoatCrashSound() {
-    if (!audioSettings.sound) return;
-    const context = this.sound.context;
-    if (!context?.createOscillator || !context?.createBuffer) {
-      playSound(this, 'stomp', { volume: 0.75 });
-      return;
-    }
-    const now = context.currentTime;
-    const thud = context.createOscillator();
-    const thudGain = context.createGain();
-    thud.type = 'sine';
-    thud.frequency.setValueAtTime(145, now);
-    thud.frequency.exponentialRampToValueAtTime(48, now + 0.28);
-    thudGain.gain.setValueAtTime(0.48, now);
-    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-    thud.connect(thudGain).connect(context.destination);
-    thud.start(now);
-    thud.stop(now + 0.31);
-
-    const sampleRate = context.sampleRate;
-    const buffer = context.createBuffer(1, Math.floor(sampleRate * 0.36), sampleRate);
-    const samples = buffer.getChannelData(0);
-    for (let i = 0; i < samples.length; i++) {
-      samples[i] = (Math.random() * 2 - 1) * (1 - i / samples.length);
-    }
-    const splash = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const splashGain = context.createGain();
-    splash.buffer = buffer;
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1050, now);
-    filter.frequency.exponentialRampToValueAtTime(240, now + 0.34);
-    splashGain.gain.setValueAtTime(0.22, now);
-    splashGain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
-    splash.connect(filter).connect(splashGain).connect(context.destination);
-    splash.start(now);
-    splash.stop(now + 0.37);
+    // Pooled sound-manager voices (no per-call oscillators or noise buffers).
+    sfx(this).play('impact', { volume: 1.2, rate: 0.85 });
+    sfx(this).play('splash', { volume: 0.8 });
   }
 
   createBoatCrashEffect(x, y) {
@@ -936,86 +938,29 @@ export class GameScene extends Phaser.Scene {
       .setScale(1 / zoom).setScrollFactor(0);
   }
 
+  // Compact HUD (src/hud.js): portrait, hearts and shield at top-left; score, coins,
+  // stage and the pause/fullscreen buttons at top-right.
   createHUD() {
-    const zoom = this.cameras.main.zoom;
-    this.hudContainer = this.add.container(400 - 400 / zoom, 225 - 225 / zoom)
-      .setScale(1 / zoom).setScrollFactor(0).setDepth(200).setAlpha(0);
-    const textStyle = { fontFamily: 'Trebuchet MS, Arial, sans-serif', fontStyle: 'bold',
-      stroke: '#101711', strokeThickness: 4 };
-    const hudText = (x, y, value, size, color) => this.add.text(x, y, value, {
-      ...textStyle, fontSize: `${size}px`, color
-    }).setOrigin(0, 0.5);
-
-    // Repeated fine gold trim ties the status groups into one readable HUD.
-    const hudFrame = this.add.graphics();
-    const plaque = (x, y, width, height, accent = 0xc79545) => {
-      hudFrame.fillStyle(0x07111b, 0.62).fillRoundedRect(x + 2, y + 3, width, height, 9);
-      hudFrame.fillStyle(0x101e2a, 0.91).fillRoundedRect(x, y, width, height, 9);
-      hudFrame.lineStyle(1, 0xe2bf78, 0.68).strokeRoundedRect(x + 0.5, y + 0.5, width - 1, height - 1, 9);
-      hudFrame.fillStyle(accent, 0.95).fillRoundedRect(x + 7, y + 7, 2, height - 14, 1);
-      hudFrame.fillStyle(0xf1d69d, 0.66).fillRect(x + 14, y + 5, width - 28, 1);
-    };
-    plaque(7, 5, 239, 54, 0xc94e58);
-    plaque(253, 5, 167, 42);
-    plaque(427, 5, 169, 42);
-    plaque(603, 5, 145, 42, 0xd5a446);
-    plaque(752, 7, 41, 41, 0xd5a446);
-    // The frame never changes: bake it so its rounded rects are not re-triangulated every frame.
-    this.hudContainer.addAt(bakeGraphics(this, hudFrame, 'hud-frame',
-      { x: 0, y: 0, width: 800, height: 64 }), 0);
-
-    this.vitalBars = this.add.graphics();
-    this.bloodLabel = hudText(17, 14, 'HEALTH', 8, '#ffdca0');
-    this.shieldLabel = hudText(13, 33, 'SHIELD', 8, '#b9dcff');
-    this.levelText = hudText(269, 16, 'STAGE', 8, '#d8bf8b');
-    this.levelValueText = hudText(269, 32, `${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`, 13, '#f4f1df');
-    this.scoreLabel = hudText(443, 16, 'SCORE', 8, '#d8bf8b');
-    this.scoreText = hudText(443, 32, String(this.score).padStart(5, '0'), 13, '#f4f1df');
-    this.coinsLabel = hudText(619, 16, 'TREASURE', 8, '#d8bf8b');
-    this.coinsText = hudText(649, 32, String(this.coins).padStart(2, '0'), 14, '#fff4dc');
-    this.coinIcon = this.add.image(631, 32, 'khmer-coin', 2).setDisplaySize(17, 17);
-    this.hudContainer.add([this.vitalBars, this.bloodLabel, this.shieldLabel,
-      this.levelText, this.levelValueText, this.scoreLabel, this.scoreText,
-      this.coinsLabel, this.coinIcon, this.coinsText]);
-    this.drawVitalBars();
-    this.extraLivesText = hudText(234, 33, '', 10, '#ffd078');
-    this.characterNameText = hudText(13, 51, PLAYER_CHARACTER_NAME.toUpperCase(), 9, '#ffd078');
-    this.hudContainer.add([this.characterNameText, this.extraLivesText]);
-    const pauseIcon = this.add.container(770, 28);
-    const pausePlate = this.add.graphics();
-    pausePlate.fillStyle(0x20364e, 0.94).fillRoundedRect(-20, -20, 40, 40, 8);
-    pausePlate.lineStyle(1.5, 0xd8d7c9, 0.82).strokeRoundedRect(-19.25, -19.25, 38.5, 38.5, 8);
-    const pauseMark = this.add.text(0, 0, 'Ⅱ', {
-      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '20px',
-      fontStyle: 'bold', color: '#f4f1df'
-    }).setOrigin(0.5);
-    pauseIcon.add([...bakeGraphics(this, pausePlate, 'hud-pause-plate',
-      { x: -22, y: -22, width: 44, height: 44 }), pauseMark]);
-    pauseIcon.setSize(48, 48).setInteractive({ useHandCursor: true });
-    pauseIcon.on('pointerover', () => pauseIcon.setScale(1.1));
-    pauseIcon.on('pointerout', () => pauseIcon.setScale(1));
-    pauseIcon.on('pointerdown', () => this.pauseGame());
-    // Input checks the interactive child's scroll factor, not just its HUD parent.
-    pauseIcon.setScrollFactor(0);
-    this.hudContainer.add(pauseIcon);
+    this.hud = new GameHUD(this);
+    this.hudContainer = this.hud.container;
     this.comboText = this.screenText(400, 77, '', {
       fontSize: '12px', fontStyle: 'bold', color: '#ffe19a',
       stroke: '#172338', strokeThickness: 3
     }).setOrigin(0.5).setDepth(220).setAlpha(0);
     if (this.currentLevel === 6) {
-      this.level6ObjectiveText = this.add.text(14, 64, 'DEFEAT 5 ENEMIES: 0/5', {
+      this.level6ObjectiveText = this.add.text(8, 44, 'DEFEAT 5 ENEMIES: 0/5', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', fontStyle: 'bold', color: '#fff2cd',
         stroke: '#0b0f16', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
       });
-      const routeHint = this.add.text(14, 79, '↓ / S: descend    •    Jump to climb', {
+      const routeHint = this.add.text(8, 60, '↓ / S: descend    •    Jump to climb', {
         fontFamily: 'Arial, sans-serif', fontSize: '11px', color: '#fff2cd',
         stroke: '#0b0f16', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
       });
       this.hudContainer.add([this.level6ObjectiveText, routeHint]);
     }
     if (this.currentLevel === 3) {
-      this.level3ObjectiveCheck = this.add.graphics();
-      this.level3ObjectiveText = this.add.text(31, 68, 'Defeat Stone Guardian', {
+      this.level3ObjectiveCheck = this.add.graphics().setY(-14);   // checkbox sits under the compact HUD
+      this.level3ObjectiveText = this.add.text(31, 54, 'Defeat Stone Guardian', {
         fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '11px',
         fontStyle: 'bold', color: '#fff0bc',
         stroke: '#100905', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
@@ -1023,67 +968,11 @@ export class GameScene extends Phaser.Scene {
       this.hudContainer.add([this.level3ObjectiveCheck, this.level3ObjectiveText]);
       this.drawLevel3ObjectiveCheck();
     }
-    this.tweens.add({ targets: this.hudContainer, alpha: 1,
-      duration: 700, delay: 120, ease: 'Sine.easeOut' });
   }
 
+  // Called every frame and after any health/shield change; the HUD only redraws what changed.
   drawVitalBars() {
-    this.extraLivesText?.setText(this.lives > 3 ? '+' + (this.lives - 3) : '');
-    const g = this.vitalBars;
-    if (!g) return;
-    // update() calls this every frame; only rebuild the shapes when a value changed.
-    const now = this.time?.now || 0;
-    const recharge = this.shields >= 3 ? 1 : (this.nextShieldRecoveryAt > now
-      ? 1 - (this.nextShieldRecoveryAt - now) / 8000 : 0);
-    const signature = `${this.health}|${this.shields}|${Math.round(recharge * 166)}`;
-    if (signature === this.vitalBarsSignature) return;
-    this.vitalBarsSignature = signature;
-    g.clear();
-    const drawBar = (y, ratio, color, highlight) => {
-      const x = 57, width = 174, height = 13;
-      g.fillStyle(0x160e0a, 1).fillRect(x - 2, y - 2, width + 4, height + 4);
-      g.fillStyle(0xd59a35, 1).fillRect(x, y, width, height);
-      g.fillStyle(0xf0c45e, 1).fillRect(x + 3, y + 1, width - 6, 2);
-      g.fillStyle(0x27170f, 1).fillRect(x + 3, y + 3, width - 6, height - 5);
-      g.fillStyle(0x100d18, 1).fillRect(x + 5, y + 4, width - 10, height - 7);
-      const innerWidth = Math.max(0, (width - 10) * Phaser.Math.Clamp(ratio, 0, 1));
-      if (innerWidth > 0) {
-        g.fillStyle(color, 1).fillRect(x + 5, y + 4, innerWidth, height - 7);
-        g.fillStyle(highlight, 0.42).fillRect(x + 5, y + 4, innerWidth, 2);
-      }
-      // Stepped end caps and small center studs echo a pixel game's status frame.
-      g.fillStyle(0x16100d, 1).fillRect(x - 5, y + 3, 3, 7).fillRect(x + width + 2, y + 3, 3, 7);
-      g.fillStyle(0xf0c45e, 1).fillRect(x + 84, y - 4, 7, 2).fillRect(x + 84, y + height + 2, 7, 2);
-    };
-    const drawMedallion = (cx, cy, shield) => {
-      g.fillStyle(0x100d12, 1).fillRect(cx - 12, cy - 11, 24, 22);
-      g.fillStyle(0xd39a39, 1).fillRect(cx - 10, cy - 9, 20, 18);
-      g.fillStyle(0x674632, 1).fillRect(cx - 8, cy - 7, 16, 14);
-      g.fillStyle(0xf2c65f, 1).fillRect(cx - 3, cy - 13, 6, 2).fillRect(cx - 3, cy + 11, 6, 2);
-      if (shield) {
-        g.fillStyle(0x10131d, 1)
-          .fillRect(cx - 5, cy - 6, 10, 2).fillRect(cx - 7, cy - 4, 14, 4)
-          .fillRect(cx - 5, cy, 10, 4).fillRect(cx - 2, cy + 4, 4, 3);
-        g.fillStyle(0x75baf3, 1)
-          .fillRect(cx - 4, cy - 4, 8, 2).fillRect(cx - 5, cy - 2, 10, 3)
-          .fillRect(cx - 3, cy + 1, 6, 2).fillRect(cx - 1, cy + 3, 2, 2);
-        g.fillStyle(0xd5efff, 1).fillRect(cx - 3, cy - 4, 2, 2);
-      } else {
-        g.fillStyle(0x241018, 1)
-          .fillRect(cx - 7, cy - 4, 5, 4).fillRect(cx + 2, cy - 4, 5, 4)
-          .fillRect(cx - 9, cy, 18, 3).fillRect(cx - 7, cy + 3, 14, 3)
-          .fillRect(cx - 4, cy + 6, 8, 2).fillRect(cx - 2, cy + 8, 4, 2);
-        g.fillStyle(0xe8506d, 1)
-          .fillRect(cx - 6, cy - 3, 4, 3).fillRect(cx + 2, cy - 3, 4, 3)
-          .fillRect(cx - 7, cy, 14, 3).fillRect(cx - 5, cy + 3, 10, 3)
-          .fillRect(cx - 3, cy + 6, 6, 2);
-        g.fillStyle(0xffa1a5, 1).fillRect(cx - 5, cy - 3, 2, 2);
-      }
-    };
-    drawMedallion(59, 15, false);
-    drawMedallion(59, 37, true);
-    drawBar(7, this.health / this.maxHealth, 0xc73854, 0xff8091);
-    drawBar(26, (this.shields + recharge) / 3, 0x536dbb, 0x9bcaff);
+    this.hud?.update();
   }
 
   updateLevel6GuardianDisplay() {
@@ -1240,7 +1129,7 @@ export class GameScene extends Phaser.Scene {
     }
     block.coins--;
     if (!block.coins) block.image.setTexture(this.currentLevel <= 3 ? 'temple-used-block' : 'used-coin-block').setDisplaySize(18, 18);
-    playSound(this, 'coin', { volume: 0.4 });
+    sfx(this).play('coin');
     this.awardComboPoints(100, tile.pixelX + 9, tile.pixelY - 12);
     this.coins++;
     this.updateHUD();
@@ -1260,7 +1149,7 @@ export class GameScene extends Phaser.Scene {
     if (restoredHealth) this.restoreBlood(50);
     else this.lives++;
     this.updateHUD();
-    playSound(this, 'coin', { volume: 0.6 });
+    sfx(this).play('treasure');
     this.showFloatingText(food.x, food.y - 12,
       restoredHealth ? '+50 BLOOD' : '+1 LIFE', '#86efac');
     food.destroy();
@@ -1268,7 +1157,7 @@ export class GameScene extends Phaser.Scene {
 
   collectCoin(player, coin) {
     coin.disableBody(true, true);
-    playSound(this, 'coin', { volume: 0.4 });
+    sfx(this).play('coin');
     this.awardComboPoints(100, coin.x, coin.y - 8);
     this.coins += 1;
     this.updateHUD();
@@ -1295,11 +1184,7 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => sparkle.destroy()
       });
     }
-    this.tweens.killTweensOf([this.coinIcon, this.coinsText]);
-    this.coinIcon.setScale(1);
-    this.coinsText.setScale(1);
-    this.tweens.add({ targets: [this.coinIcon, this.coinsText], scale: 1.3,
-      duration: 90, yoyo: true, ease: 'Back.easeOut' });
+    // The HUD coin counter pops on its own when the count increases.
   }
 
   createLandingPuff() {
@@ -1402,10 +1287,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   updateHUD() {
-    this.levelValueText.setText(`${String(this.currentLevel).padStart(2, '0')} / ${TOTAL_LEVELS}`);
-    this.scoreText.setText(String(this.score).padStart(5, '0'));
-    this.coinsText.setText(String(this.coins).padStart(2, '0'));
-    this.drawVitalBars();
+    this.hud?.update();
   }
 
   restoreBlood(amount) {
@@ -1463,7 +1345,7 @@ export class GameScene extends Phaser.Scene {
     const isAbove = (player.body.bottom - enemyTop) < 10;
 
     if (!forceDamage && isFalling && isAbove) {
-      playSound(this, 'stomp', { volume: 0.5 });
+      sfx(this).play('stomp');
       player.setVelocityY(-260);
       // Stomping only bounces the player; bosses cannot be damaged this way.
       if (enemy.isBoss || enemy.enemyKind === 'stone-guardian' || enemy.stompImmune) return;
@@ -1480,7 +1362,7 @@ export class GameScene extends Phaser.Scene {
       this.comboExpiresAt = 0;
 
       // Play an impact cue for every damaging enemy contact; invulnerable overlaps return above.
-      playSound(this, 'stomp', { volume: 0.72, rate: 1.05 });
+      sfx(this).play('hurt');
 
       if (this.shields > 0) {
         this.shields--;
@@ -1549,7 +1431,7 @@ export class GameScene extends Phaser.Scene {
   // ground they stood on; it only ends the run when that empties their health.
   handlePitFall() {
     if (this.isRunOver || this.isLevelFinished) return;
-    playSound(this, 'stomp', { volume: 0.72, rate: 0.9 });
+    sfx(this).play('hurt');
     this.comboCount = 0;
     this.comboExpiresAt = 0;
     this.loseHealthUnit();
@@ -1638,7 +1520,7 @@ export class GameScene extends Phaser.Scene {
 
     // Stop music and play victory sound
     this.sound.stopByKey(this.musicKey);
-    playSound(this, 'win', { volume: 0.55 });
+    sfx(this).play('levelClear');
 
     // Step 1: Slide down flagpole
     player.setVelocity(0, 0);
@@ -1850,14 +1732,23 @@ export class GameScene extends Phaser.Scene {
       this.player.setVelocityY(doubleJump ? -320 : -350);
       if (doubleJump) this.createLandingPuff();
       if (!actionLocked) this.player.play('player-jump', true);
-      playSound(this, 'jump', { volume: doubleJump ? 0.48 : 0.4, rate: doubleJump ? 1.25 : 1 });
+      sfx(this).play(doubleJump ? 'doubleJump' : 'jump');
     }
 
     if (!grounded) {
       if (!actionLocked) this.player.play('player-jump', true);
     }
 
-    if (landed) this.createLandingPuff();
+    if (landed) {
+      this.createLandingPuff();
+      sfx(this).play('land', { volume: Math.min(1.3, 0.6 + (this.lastFallSpeed || 0) / 500) });
+    }
+    if (!grounded) this.lastFallSpeed = Math.max(0, this.player.body.velocity.y);
+    // Footsteps: throttled by stride (faster when sprinting), surface-aware.
+    if (grounded && !landed && Math.abs(this.player.body.velocity.x) > 45 && this.time.now >= (this.nextFootstepAt || 0)) {
+      this.nextFootstepAt = this.time.now + (Math.abs(this.player.body.velocity.x) > 175 ? 230 : 300);
+      sfx(this).footstep(this);
+    }
     this.wasPlayerAirborne = !grounded;
     if (grounded && targetVelocityX !== 0 && this.time.now >= (this.nextRunGlintAt || 0)) {
       this.nextRunGlintAt = this.time.now + 135;

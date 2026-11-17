@@ -2,6 +2,7 @@ import { LEVEL8 } from './levels/level8Layout.js';
 import { touchControls } from './mobileControls.js';
 import { addLevel8KhmerShop } from './level8Shop.js';
 import { bakeCentered, bakeGraphics } from './bakeGraphics.js';
+import { sfx } from './audio/soundManager.js';
 
 function createSanctumTexture(scene) {
   if (!scene.textures.exists('level8-mekong-islet')) {
@@ -321,6 +322,7 @@ export function attachLevel8Sanctum(scene) {
     relic.disableBody(true, true);
     state.relicCount++;
     scene.coins += 1;
+    sfx(scene).play('treasure');
     scene.score += 300;
     scene.updateHUD();
     scene.showFloatingText(relic.x, relic.y - 18, `RELIC ${state.relicCount}/10  +300`, '#ffe58d');

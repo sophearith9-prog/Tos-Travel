@@ -1,4 +1,5 @@
 import { canvasTexture } from '../biomes/biomeArt.js';
+import { sfx } from '../audio/soundManager.js';
 
 // Wild boar: patrols, spots the player, paws the ground (telegraph), then charges in a
 // straight line until it reaches a ledge, a wall or its charge distance, and rests.
@@ -85,11 +86,14 @@ export default {
         if (state === 'patrol') {
           if (ledgeAhead || body.blocked.left || body.blocked.right) facing = -facing;
           sprite.setVelocityX(walkSpeed * facing).setFrame(Math.floor(now / 220) % 2);
-          if (seesPlayer && grounded) { facing = Math.sign(dx) || facing; sprite.setVelocityX(0); set('paw'); }
+          if (seesPlayer && grounded) {
+            facing = Math.sign(dx) || facing; sprite.setVelocityX(0); set('paw');
+            sfx(scene).playAt(scene, 'boarSnort', sprite.x, sprite.y);
+          }
         } else if (state === 'paw') {
           sprite.setVelocityX(0).setFrame(2 + (Math.floor(now / 110) % 2));
           if (now >= nextDust) { dust(); nextDust = now + 140; }
-          if (now - since >= pawMs) { chargeFrom = sprite.x; set('charge'); }
+          if (now - since >= pawMs) { chargeFrom = sprite.x; set('charge'); sfx(scene).playAt(scene, 'boarCharge', sprite.x, sprite.y); }
         } else if (state === 'charge') {
           sprite.setVelocityX(chargeSpeed * facing).setFrame(4 + (Math.floor(now / 70) % 2));
           if (now >= nextDust) { dust(); nextDust = now + 90; }

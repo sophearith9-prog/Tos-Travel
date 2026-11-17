@@ -15,6 +15,7 @@ export default {
     const sprite = platformSprite(scene, path[0].x, path[0].y, width, height, style).setOrigin(0, 0);
     scene.physics.add.existing(sprite);
     sprite.body.setAllowGravity(false).setImmovable(true);
+    sprite.setData('surface', style === 'stone' ? 'stone' : 'wood');
     if (oneWay) {
       sprite.body.checkCollision.down = false;
       sprite.body.checkCollision.left = false;

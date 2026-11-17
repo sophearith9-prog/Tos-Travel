@@ -1,5 +1,6 @@
 import { TOTAL_LEVELS } from './levels/provinceRoute.js';
 import { retireRock } from './combat.js';
+import { sfx } from './audio/soundManager.js';
 
 export function installFinalBoss(scene) {
   scene.boss = null;
@@ -83,6 +84,7 @@ export function updateFinalBoss(scene, boss, now) {
   }
   if (now >= boss.nextShot) {
     boss.nextShot = now + 2000;
+    sfx(scene).play('bossWarn');   // priority: always audible
     boss.shootUntil = now + 450;
     boss.play('guardian-attack-1', true);
     for (const offset of [-10, 10]) {

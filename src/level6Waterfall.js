@@ -1,4 +1,4 @@
-import { audioSettings, onAudioSettingsChange } from './audioSettings.js';
+import { sfx } from './audio/soundManager.js';
 import { bakeGraphics } from './bakeGraphics.js';
 
 const WATERFALLS = [
@@ -7,59 +7,13 @@ const WATERFALLS = [
   { x: 458, top: 420, bottom: 692, width: 17, speed: 0.085 }
 ];
 
+// Waterfall sound now comes from the shared sound manager's looping bed: each cascade
+// registers its column and the loop gets louder as the player gets closer.
 function addWaterfallAudio(scene) {
-  const manager = scene.sound;
-  const context = manager?.context;
-  if (!context?.createBuffer || !context?.createBufferSource) return;
-
-  // Soft, filtered brown noise gives the cascades a continuous water-rush bed.
-  const buffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
-  const samples = buffer.getChannelData(0);
-  let brownNoise = 0;
-  for (let i = 0; i < samples.length; i++) {
-    brownNoise = (brownNoise + (Math.random() * 2 - 1) * 0.035) / 1.035;
-    samples[i] = brownNoise * 3.2;
-  }
-
-  const source = context.createBufferSource();
-  const highPass = context.createBiquadFilter();
-  const lowPass = context.createBiquadFilter();
-  const gain = context.createGain();
-  const destination = manager.masterVolumeNode || context.destination;
-  source.buffer = buffer;
-  source.loop = true;
-  highPass.type = 'highpass';
-  highPass.frequency.value = 110;
-  lowPass.type = 'lowpass';
-  lowPass.frequency.value = 1050;
-  gain.gain.value = 0.0001;
-  source.connect(highPass);
-  highPass.connect(lowPass);
-  lowPass.connect(gain);
-  gain.connect(destination);
-  source.start();
-
-  let paused = false;
-  const syncVolume = () => {
-    const volume = !paused && audioSettings.sound ? 0.11 : 0.0001;
-    gain.gain.setTargetAtTime(volume, context.currentTime, paused ? 0.12 : 0.45);
-  };
-  const onPause = () => { paused = true; syncVolume(); };
-  const onResume = () => { paused = false; syncVolume(); };
-  const unsubscribeAudio = onAudioSettingsChange(syncVolume);
-  scene.events.on('pause', onPause);
-  scene.events.on('resume', onResume);
-  scene.events.once('shutdown', () => {
-    unsubscribeAudio();
-    scene.events.off('pause', onPause);
-    scene.events.off('resume', onResume);
-    try { source.stop(); } catch { /* The scene may already have stopped the source. */ }
-    source.disconnect();
-    highPass.disconnect();
-    lowPass.disconnect();
-    gain.disconnect();
-  });
-  syncVolume();
+  const unregister = WATERFALLS.map(fall => sfx(scene).addWaterfall({
+    x: fall.x, halfWidth: fall.width / 2, top: fall.top, bottom: fall.bottom
+  }));
+  scene.events.once('shutdown', () => unregister.forEach(off => off()));
 }
 
 function makeFlowTextures(scene) {

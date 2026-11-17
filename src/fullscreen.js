@@ -1,51 +1,31 @@
-﻿export function installFullscreen(game) {
+﻿// Fullscreen for the game frame (.machine). The visible control is drawn by the in-game
+// HUD next to the pause button (see src/hud.js), using game.fullscreen.toggle().
+// The HTML #fullscreen-button stays in the page, visually hidden, so keyboard and
+// screen-reader users can still reach it (it appears when focused).
+export function installFullscreen(game) {
   const machine = document.querySelector('.machine');
   const button = document.querySelector('#fullscreen-button');
-  if (!machine || !button) return;
+  if (!machine) return;
   let expanded = false;
   const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
-  const positionButton = () => {
-    if (!game.canvas || !button.parentElement) return;
-    const canvas = game.canvas.getBoundingClientRect();
-    const frame = button.parentElement.getBoundingClientRect();
-    // Stack just below the pause HUD at (770, 28) in the game's 800x450 layout.
-    button.style.left = `${canvas.left - frame.left + canvas.width * (770 / 800)}px`;
-    button.style.top = `${canvas.top - frame.top + canvas.height * (78 / 450)}px`;
-    button.classList.add('is-placed');
-  };
+  const isActive = () => fullscreenElement() === machine || expanded;
+  const listeners = new Set();
   const sync = () => {
-    const active = fullscreenElement() === machine || expanded;
+    const active = isActive();
     machine.classList.toggle('is-fullscreen', active);
     document.body.classList.toggle('game-expanded', active);
-    button.textContent = '⛶';
-    button.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
-    button.title = active ? 'Exit fullscreen' : 'Enter fullscreen';
-    button.setAttribute('aria-pressed', String(active));
-    requestAnimationFrame(() => { game.scale.refresh(); positionButton(); });
+    if (button) {
+      button.setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
+      button.title = active ? 'Exit fullscreen' : 'Enter fullscreen';
+      button.setAttribute('aria-pressed', String(active));
+    }
+    listeners.forEach(listener => listener(active));
+    requestAnimationFrame(() => game.scale.refresh());
   };
-  // Hide the HTML button while an in-game overlay (pause, game over, victory, stage
-  // clear, shop) is open so it never sits on top of menu panels.
-  const OVERLAY_SCENES = ['PauseScene', 'GameOverScene', 'VictoryScene'];
-  const overlayOpen = () => {
-    if (OVERLAY_SCENES.some(key => game.scene.isActive(key))) return true;
-    const play = game.scene.getScene('GameScene');
-    return !!play?.sys.isActive() && !!(play.stageClearOpen || play.level6Shop?.busy || play.level8Shop?.busy);
-  };
-  let hiddenForOverlay = false;
-  game.events.on('poststep', () => {
-    const hide = overlayOpen();
-    if (hide === hiddenForOverlay) return;
-    hiddenForOverlay = hide;
-    button.classList.toggle('is-overlay-hidden', hide);
-    if (hide && document.activeElement === button) button.blur();
-  });
-  game.scale.on('resize', positionButton);
-  window.addEventListener('resize', positionButton);
-  window.addEventListener('orientationchange', positionButton);
-  new ResizeObserver(positionButton).observe(button.parentElement);
-  requestAnimationFrame(positionButton);
-  button.addEventListener('click', async () => {
-    button.disabled = true;
+  let busy = false;
+  const toggle = async () => {
+    if (busy) return;
+    busy = true;
     try {
       if (fullscreenElement() === machine) {
         const exit = document.exitFullscreen || document.webkitExitFullscreen;
@@ -61,10 +41,19 @@
         } else expanded = true;
       }
     } finally {
-      button.disabled = false;
+      busy = false;
       sync();
     }
-  });
+  };
+  game.fullscreen = {
+    toggle,
+    isActive,
+    onChange(listener) { listeners.add(listener); return () => listeners.delete(listener); }
+  };
+  if (button) {
+    button.classList.add('is-hud-replaced');
+    button.addEventListener('click', toggle);
+  }
   document.addEventListener('fullscreenchange', sync);
   document.addEventListener('webkitfullscreenchange', sync);
   window.addEventListener('keydown', event => {

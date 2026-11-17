@@ -1,186 +1,220 @@
-import { label } from '../ui.js';
 import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
-import { audioSettings, onAudioSettingsChange, setAudioEnabled } from '../audioSettings.js';
+import { audioSettings, onAudioSettingsChange, setAudioEnabled, setAudioLevel } from '../audioSettings.js';
 import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
+import { sfx } from '../audio/soundManager.js';
 
-function drawRomdoul(graphics, x, y, radius, color, alpha = 1) {
-  const center = { x, y };
-  const petals = [-90, 30, 150];
-  graphics.fillStyle(color, alpha);
-  for (const degrees of petals) {
-    const angle = degrees * Math.PI / 180;
-    const ux = Math.cos(angle);
-    const uy = Math.sin(angle);
-    const px = -uy;
-    const py = ux;
-    const tip = { x: x + ux * radius, y: y + uy * radius };
-    const shoulder = { x: x + ux * radius * 0.56, y: y + uy * radius * 0.56 };
-    graphics.fillPoints([
-      center,
-      { x: shoulder.x + px * radius * 0.28, y: shoulder.y + py * radius * 0.28 },
-      tip,
-      { x: shoulder.x - px * radius * 0.28, y: shoulder.y - py * radius * 0.28 }
-    ], true);
-  }
-  graphics.fillStyle(color === 0x633f32 ? 0xf7dca3 : 0xf1cf84, alpha);
-  graphics.fillCircle(center.x, center.y, radius * 0.15);
-}
+// Pause menu as an HTML overlay over the game (styles in index.html, `.pause-*`).
+// HTML gives real 44px+ touch targets on phones (where the canvas itself is tiny),
+// native focus and screen-reader support, while keeping the gold-frame Khmer look.
+// Over the game on desktop / landscape; full screen on portrait phones.
 
-function actionButton(scene, x, y, width, height, title, action, primary = false) {
-  const container = scene.add.container(x, y);
-  const art = scene.add.graphics();
-  const left = -width / 2;
-  const top = -height / 2;
-  const base = primary ? 0xe7c891 : 0x203957;
-  const edge = primary ? 0xb48a53 : 0x547395;
-  const flower = primary ? 0x80563b : 0xd4b574;
-  art.fillStyle(0x030914, 0.5).fillRoundedRect(left, top + 4, width, height, 7);
-  art.fillStyle(base).fillRoundedRect(left, top, width, height, 7);
-  art.lineStyle(1, edge, 1).strokeRoundedRect(left, top, width, height, 7);
-  art.lineStyle(1, primary ? 0xf4d9a4 : 0x304968, 0.9)
-    .lineBetween(left + 28, top + 5, -42, top + 5)
-    .lineBetween(42, top + 5, -left - 28, top + 5);
-  for (const side of [-1, 1]) {
-    drawRomdoul(art, side * (width / 2 - 15), 0, 7.3, flower, 1);
-  }
-  const caption = scene.add.text(0, 0, title, {
-    fontFamily: 'Trebuchet MS, Arial, sans-serif',
-    fontSize: primary ? '16px' : '15px',
-    fontStyle: 'bold',
-    color: primary ? '#172337' : '#d5dfeb'
-  }).setOrigin(0.5);
-  container.add([art, caption]);
-  container.setSize(width, height).setInteractive({ useHandCursor: true });
-  container.on('pointerover', () => container.setScale(1.025));
-  container.on('pointerout', () => container.setScale(1));
-  container.on('pointerdown', action);
-  return { container, caption };
-}
+const ICONS = {
+  music: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18.5a2.5 2.5 0 1 1-2-2.45V5.5l11-2.5v12.5a2.5 2.5 0 1 1-2-2.45V7.3L9 8.9z"/></svg>',
+  effects: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  ambience: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c3 4 6 6.5 6 10a6 6 0 0 1-12 0c0-3.5 3-6 6-10z" opacity=".9"/><path d="M12 9v12" stroke="#0f1d2e" stroke-width="1.4"/></svg>',
+  on: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  off: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+// Three-petal romdoul flower, as on the in-game buttons.
+const ROMDOUL = '<svg class="pause-flower" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 10L8 5.5 10 1l2 4.5zM10 10l4.9 1.2 3.2 3.7-4.8.3zM10 10l-3.3 3.6-4.8-.3 3.2-3.7z"/><circle cx="10" cy="10" r="1.6"/></svg>';
+const ORNAMENT = '<span class="pause-ornament" aria-hidden="true"><i></i>' + ROMDOUL + '<i></i></span>';
 
-function simpleIconButton(scene, x, y, icon, action) {
-  const container = scene.add.container(x, y);
-  const art = scene.add.graphics();
-  art.fillStyle(0x09172a, 0.38).fillRoundedRect(-21, -21, 42, 42, 9);
-  art.fillStyle(0x1b304a, 1).fillRoundedRect(-22, -23, 44, 42, 9);
-  art.lineStyle(1, 0x49617e, 0.9).strokeRoundedRect(-22, -23, 44, 42, 9);
-  const caption = scene.add.text(0, -2, icon, {
-    fontFamily: 'Arial, sans-serif', fontSize: '21px', color: '#f0d294'
-  }).setOrigin(0.5);
-  container.add([art, caption]);
-  container.setSize(44, 44).setInteractive({ useHandCursor: true });
-  container.on('pointerover', () => container.setScale(1.06));
-  container.on('pointerout', () => container.setScale(1));
-  container.on('pointerdown', action);
-  return { container, caption };
-}
+const SOUND_ROWS = [
+  { id: 'music', label: 'Music', level: 'musicVolume', toggle: 'music' },
+  { id: 'effects', label: 'Effects', level: 'sfx', toggle: 'sound' },
+  { id: 'ambience', label: 'Ambience', level: 'ambience', toggle: 'ambienceOn' }
+];
+
+const escapeHtml = text => String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class PauseScene extends Phaser.Scene {
   constructor() { super('PauseScene'); }
 
-  preload() {
-    if (!this.textures.exists('nokor-adventure-logo')) {
-      this.load.image('nokor-adventure-logo', 'assets/nokor-adventure-logo.png');
-    }
-  }
-
   create({ resumeMusic = false } = {}) {
-    fadeSceneIn(this);
-    this.add.rectangle(400, 225, 800, 450, 0x060e1c, 0.8).setInteractive();
+    fadeSceneIn(this, 1);
     const game = this.scene.get('GameScene');
-    const frame = this.add.graphics();
-    frame.fillStyle(0x020814, 0.42).fillRoundedRect(207, 29, 386, 397, 18);
-    frame.fillStyle(0x12243c, 0.98).fillRoundedRect(210, 25, 380, 397, 16);
-    frame.lineStyle(1, 0x45617e, 0.9).strokeRoundedRect(210, 25, 380, 397, 16);
-    frame.lineStyle(1, 0x2b4667, 0.8).strokeRoundedRect(216, 31, 368, 385, 12);
+    const summary = game.pauseSummary?.() || { level: game.currentLevel, name: '', coins: 0, coinTotal: 0, score: game.score, time: '0:00' };
+    const host = document.getElementById('game-container') || document.body;
+    const overlay = document.createElement('div');
+    overlay.className = 'pause-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'pause-title');
+    overlay.innerHTML = `
+      <div class="pause-panel">
+        <div class="pause-head">
+          ${ORNAMENT}<h2 id="pause-title">GAME PAUSED</h2>${ORNAMENT}
+        </div>
+        <p class="pause-level">Level ${summary.level} / ${TOTAL_LEVELS} · ${escapeHtml(summary.name)}</p>
+        <dl class="pause-stats">
+          <div><dt>Coins</dt><dd>${summary.coins} / ${summary.coinTotal}</dd></div>
+          <div><dt>Score</dt><dd>${summary.score}</dd></div>
+          <div><dt>Time</dt><dd>${summary.time}</dd></div>
+        </dl>
+        <div class="pause-body">
+          <nav class="pause-actions" aria-label="Pause menu">
+            <button type="button" class="pause-btn is-primary" data-action="resume">${ROMDOUL}<span>Resume</span>${ROMDOUL}</button>
+            <button type="button" class="pause-btn" data-action="restart">${ROMDOUL}<span>Restart Level</span>${ROMDOUL}</button>
+            <button type="button" class="pause-btn" data-action="levels">${ROMDOUL}<span>Level Select</span>${ROMDOUL}</button>
+            <button type="button" class="pause-btn" data-action="home">${ROMDOUL}<span>Back to Home</span>${ROMDOUL}</button>
+          </nav>
+          <section class="pause-sound" aria-label="Sound">
+            ${SOUND_ROWS.map(row => `
+              <div class="pause-row" data-row="${row.id}">
+                <span class="pause-row-icon">${ICONS[row.id]}</span>
+                <label class="pause-row-label" for="pause-${row.id}">${row.label}</label>
+                <input id="pause-${row.id}" class="pause-slider" type="range" min="0" max="100" step="1" data-level="${row.level}">
+                <output class="pause-value" for="pause-${row.id}"></output>
+                <button type="button" class="pause-mute" data-toggle="${row.toggle}" aria-label="Mute ${row.label}"></button>
+              </div>`).join('')}
+          </section>
+        </div>
+        <p class="pause-footer">ESC to resume · ↑↓ move · ←→ adjust · Enter select</p>
+        <div class="pause-confirm" hidden role="alertdialog" aria-labelledby="pause-confirm-title" aria-describedby="pause-confirm-text">
+          <div class="pause-confirm-card">
+            <h3 id="pause-confirm-title"></h3>
+            <p id="pause-confirm-text">Progress in this level will be lost.</p>
+            <div class="pause-confirm-actions">
+              <button type="button" class="pause-btn" data-confirm="cancel"><span>Cancel</span></button>
+              <button type="button" class="pause-btn is-primary" data-confirm="ok"><span></span></button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    host.appendChild(overlay);
+    this.overlay = overlay;
+    const $ = sel => overlay.querySelector(sel);
+    const $$ = sel => [...overlay.querySelectorAll(sel)];
 
-    // A bold stepped pediment recalls Khmer prasat roofs and temple lintels.
-    const pediment = this.add.graphics();
-    pediment.fillStyle(0x7d613e, 0.18);
-    pediment.fillPoints([
-      { x: 400, y: 29 }, { x: 414, y: 40 }, { x: 464, y: 40 },
-      { x: 478, y: 48 }, { x: 516, y: 48 }, { x: 531, y: 57 },
-      { x: 563, y: 57 }, { x: 572, y: 66 }, { x: 228, y: 66 },
-      { x: 237, y: 57 }, { x: 269, y: 57 }, { x: 284, y: 48 },
-      { x: 322, y: 48 }, { x: 336, y: 40 }, { x: 386, y: 40 }
-    ], true);
-    pediment.lineStyle(2, 0xb99057, 0.96);
-    pediment.strokePoints([
-      { x: 226, y: 67 }, { x: 237, y: 55 }, { x: 270, y: 55 },
-      { x: 284, y: 46 }, { x: 322, y: 46 }, { x: 337, y: 38 },
-      { x: 385, y: 38 }, { x: 400, y: 27 }, { x: 415, y: 38 },
-      { x: 463, y: 38 }, { x: 478, y: 46 }, { x: 516, y: 46 },
-      { x: 530, y: 55 }, { x: 563, y: 55 }, { x: 574, y: 67 }
-    ], false);
-    pediment.lineBetween(246, 73, 554, 73);
-    pediment.lineBetween(260, 78, 540, 78);
-    pediment.lineStyle(1.5, 0xe0bc79, 0.95);
-    pediment.lineBetween(400, 27, 400, 40);
-    pediment.fillStyle(0xe0bc79, 1);
-    pediment.fillPoints([
-      { x: 400, y: 23 }, { x: 404, y: 29 },
-      { x: 400, y: 35 }, { x: 396, y: 29 }
-    ], true);
-    for (const side of [-1, 1]) {
-      pediment.lineBetween(400 + side * 155, 67, 400 + side * 165, 61);
-      pediment.lineBetween(400 + side * 165, 61, 400 + side * 158, 56);
-      pediment.lineBetween(400 + side * 158, 56, 400 + side * 151, 60);
-      pediment.fillPoints([
-        { x: 400 + side * 165, y: 61 }, { x: 400 + side * 173, y: 56 },
-        { x: 400 + side * 169, y: 66 }
-      ], true);
-    }
-    this.add.image(400, 72, 'nokor-adventure-logo').setDisplaySize(218, 109);
-    this.add.text(400, 132, 'GAME PAUSED', {
-      fontFamily: 'Georgia, Trebuchet MS, sans-serif', fontSize: '28px',
-      color: '#f0c978', fontStyle: 'bold', letterSpacing: 1
-    }).setOrigin(0.5);
-    this.add.text(400, 158, `LEVEL ${game.currentLevel} / ${TOTAL_LEVELS}`, {
-      fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '13px',
-      color: '#b5c5d7', letterSpacing: 1
-    }).setOrigin(0.5);
+    /* ---------- sound rows ---------- */
+    const syncSound = () => {
+      for (const row of SOUND_ROWS) {
+        const el = $(`[data-row="${row.id}"]`);
+        const slider = el.querySelector('.pause-slider');
+        const on = audioSettings[row.toggle];
+        const pct = Math.round(audioSettings[row.level] * 100);
+        if (document.activeElement !== slider) slider.value = pct;
+        slider.style.setProperty('--fill', `${pct}%`);
+        el.querySelector('.pause-value').textContent = `${pct}%`;
+        el.classList.toggle('is-muted', !on);
+        const mute = el.querySelector('.pause-mute');
+        mute.innerHTML = on ? ICONS.on : ICONS.off;
+        mute.setAttribute('aria-pressed', String(!on));
+        mute.setAttribute('aria-label', `${on ? 'Mute' : 'Unmute'} ${row.label}`);
+        slider.setAttribute('aria-valuetext', `${pct}%${on ? '' : ', muted'}`);
+      }
+    };
+    syncSound();
+    const unsubscribe = onAudioSettingsChange(syncSound);
+    let nextPreview = 0;
+    const setLevel = (slider, pct) => {
+      const value = Phaser.Math.Clamp(pct, 0, 100);
+      slider.value = value;
+      setAudioLevel(slider.dataset.level, value / 100);   // saved + applied instantly
+      if (slider.dataset.level === 'sfx' && performance.now() >= nextPreview) { nextPreview = performance.now() + 140; sfx(this).play('uiTap'); }
+    };
+    $$('.pause-slider').forEach(slider => slider.addEventListener('input', () => setLevel(slider, Number(slider.value))));
+    $$('.pause-mute').forEach(button => button.addEventListener('click', () => {
+      const key = button.dataset.toggle;
+      setAudioEnabled(key, !audioSettings[key]);
+      sfx(this).play('uiTap');
+    }));
 
-    let resumed = false;
+    /* ---------- actions ---------- */
+    let closed = false;
+    const close = () => { if (closed) return false; closed = true; unsubscribe(); overlay.classList.add('is-closing'); return true; };
     const resume = () => {
-      if (resumed) return;
-      resumed = true;
+      if (!close()) return;
       game.input.keyboard?.resetKeys();
       if (resumeMusic) this.sound.get(game.musicKey)?.resume();
       this.scene.resume('GameScene');
       this.scene.stop();
     };
     const leave = (destination, data) => {
-      if (resumed) return;
-      resumed = true;
+      if (!close()) return;
       game.input.keyboard?.resetKeys();
       this.sound.stopByKey(game.musicKey);
-      fadeToScene(this, destination, data, { stop: ['GameScene'] });
+      fadeToScene(this, destination, data, { stop: ['GameScene'], duration: 260 });
     };
-
-    actionButton(this, 400, 190, 280, 38, 'RESUME  >', resume, true);
-    actionButton(this, 400, 236, 280, 38, 'Restart Level', () => leave('GameScene', {
-      level: game.currentLevel, score: game.levelStartScore,
-      coins: game.levelStartCoins, lives: 3
-    }));
-    actionButton(this, 400, 282, 280, 38, 'Level Select', () => leave('LevelSelectScene'));
-    actionButton(this, 400, 328, 280, 38, 'Back to Home', () => leave('MainMenuScene'));
-
-    const musicToggle = simpleIconButton(this, 370, 378, audioSettings.music ? '\u266b' : '\u266a', () => setAudioEnabled('music', !audioSettings.music));
-    const soundToggle = simpleIconButton(this, 430, 378, audioSettings.sound ? '\u{1f50a}\ufe0e' : '\u{1f507}\ufe0e', () => setAudioEnabled('sound', !audioSettings.sound));
-    const syncAudioButtons = () => {
-      musicToggle.caption.setText(audioSettings.music ? '\u266b' : '\u266a');
-      soundToggle.caption.setText(audioSettings.sound ? '\u{1f50a}\ufe0e' : '\u{1f507}\ufe0e');
+    const restart = () => leave('GameScene', {
+      level: game.currentLevel, score: game.levelStartScore, coins: game.levelStartCoins, lives: 3
+    });
+    const confirmBox = $('.pause-confirm');
+    let pendingAction = null, returnFocus = null;
+    const ask = (title, okLabel, action, opener) => {
+      pendingAction = action; returnFocus = opener;
+      $('#pause-confirm-title').textContent = title;
+      $('[data-confirm="ok"] span').textContent = okLabel;
+      confirmBox.hidden = false;
+      $('[data-confirm="cancel"]').focus();
     };
-    const unsubscribeAudio = onAudioSettingsChange(syncAudioButtons);
-    this.events.once('shutdown', unsubscribeAudio);
-    label(this, 400, 408, 'ESC to resume', 11, '#a4b6cb');
+    const closeConfirm = () => { confirmBox.hidden = true; pendingAction = null; returnFocus?.focus(); };
+    $('[data-confirm="cancel"]').addEventListener('click', () => { sfx(this).play('uiTap'); closeConfirm(); });
+    $('[data-confirm="ok"]').addEventListener('click', () => { sfx(this).play('uiTap'); const action = pendingAction; closeConfirm(); action?.(); });
+    const actions = {
+      resume,
+      restart: button => ask('Restart this level?', 'Restart', restart, button),
+      levels: () => leave('LevelSelectScene'),
+      home: button => ask('Back to the home screen?', 'Leave level', () => leave('MainMenuScene'), button)
+    };
+    $$('[data-action]').forEach(button => {
+      button.addEventListener('click', () => { sfx(this).play('uiTap'); actions[button.dataset.action](button); });
+      button.addEventListener('pointerenter', () => sfx(this).play('menuMove'));
+    });
 
-    if (this.input.keyboard) {
-      // Ignore the Escape event that opened the menu and held-key repeats.
-      let ready = false;
-      this.time.delayedCall(180, () => { ready = true; });
-      const escape = event => { if (ready && !event.repeat) resume(); };
-      this.input.keyboard.on('keydown-ESC', escape);
-      this.events.once('shutdown', () => this.input.keyboard.off('keydown-ESC', escape));
-    }
+    /* ---------- keyboard: ↑↓ move, ←→ adjust, Enter select, Esc resume ---------- */
+    const order = () => confirmBox.hidden
+      ? [...$$('[data-action]'), ...$$('.pause-slider')]
+      : $$('[data-confirm]');
+    const onKey = event => {
+      const items = order();
+      const current = document.activeElement;
+      const index = items.indexOf(current);
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation();
+        if (!confirmBox.hidden) closeConfirm(); else if (ready) resume();
+        return;
+      }
+      if (event.key.startsWith('Arrow') || event.key === 'Tab') overlay.classList.add('is-kbd');   // show focus glow
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || (event.key === 'Tab' && !confirmBox.hidden)) {
+        event.preventDefault();
+        const step = event.key === 'ArrowUp' || (event.key === 'Tab' && event.shiftKey) ? -1 : 1;
+        items[(index + step + items.length) % items.length]?.focus();
+        sfx(this).play('menuMove');
+        return;
+      }
+      if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && current?.classList.contains('pause-slider')) {
+        event.preventDefault();
+        setLevel(current, Number(current.value) + (event.key === 'ArrowRight' ? 5 : -5));
+        return;
+      }
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (current?.classList.contains('pause-slider')) {
+          // Enter on a sound row toggles its mute.
+          event.preventDefault();
+          current.closest('.pause-row').querySelector('.pause-mute').click();
+        } else if (current?.tagName === 'BUTTON' && overlay.contains(current)) {
+          event.preventDefault();
+          current.click();
+        }
+      }
+    };
+    // Ignore the Escape press that opened the menu and held-key repeats.
+    let ready = false;
+    this.time.delayedCall(200, () => { ready = true; });
+    overlay.addEventListener('keydown', onKey);
+    overlay.addEventListener('pointerdown', () => overlay.classList.remove('is-kbd'));
+    // Keep keyboard focus inside the menu.
+    const keepFocus = event => { if (!overlay.contains(event.target)) $('[data-action="resume"]').focus(); };
+    document.addEventListener('focusin', keepFocus);
+    requestAnimationFrame(() => $('[data-action="resume"]').focus({ preventScroll: true }));
+
+    this.events.once('shutdown', () => {
+      unsubscribe();
+      document.removeEventListener('focusin', keepFocus);
+      overlay.remove();
+      this.overlay = null;
+      game.game?.canvas?.focus?.();
+    });
   }
 }

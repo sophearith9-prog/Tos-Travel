@@ -1,5 +1,6 @@
 import { canvasTexture } from '../biomes/biomeArt.js';
 import { safeColliders } from './helpers.js';
+import { sfx } from '../audio/soundManager.js';
 
 // A walking elephant whose back is a ride-on platform (Arcade carries the rider).
 //   { type: 'elephantPlatform', minX, maxX, floorY, speed = 30 (px/s), pauseMs = 900,
@@ -70,6 +71,7 @@ export default {
     scene.physics.add.existing(back);
     back.body.setAllowGravity(false).setImmovable(true);
     back.body.checkCollision.down = back.body.checkCollision.left = back.body.checkCollision.right = false;
+    back.setData('surface', 'grass');   // soft footsteps on the saddle blanket
     const removeColliders = safeColliders(scene, [[scene.player, back]]);
     let direction = startDir, waitUntil = 0, stride = 0;
 
@@ -83,6 +85,7 @@ export default {
         } else if ((direction > 0 && cx >= maxX) || (direction < 0 && cx <= minX)) {
           direction = -direction;
           waitUntil = now + pauseMs;
+          sfx(scene).playAt(scene, 'elephant', back.x, floorY - 30);
           back.body.setVelocityX(0);
         } else {
           back.body.setVelocityX(speed * direction);

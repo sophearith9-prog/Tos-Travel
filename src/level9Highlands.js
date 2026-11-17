@@ -1,6 +1,7 @@
 import { LEVEL9 } from './levels/level9Layout.js';
 import { touchControls } from './mobileControls.js';
 import { bakeGraphics } from './bakeGraphics.js';
+import { sfx } from './audio/soundManager.js';
 
 function makeLevel9Textures(scene) {
   if (!scene.textures.exists('level9-laterite')) {
@@ -267,6 +268,9 @@ export function attachLevel9Highlands(scene) {
   scene.physics.add.overlap(scene.player, state.waterZone, player => {
     recoverPlayerFromLake(scene, player, state);
   });
+  const unregisterFall = sfx(scene).addWaterfall({ x: LEVEL9.waterfall.x + LEVEL9.waterfall.width / 2, halfWidth: LEVEL9.waterfall.width / 2,
+    top: LEVEL9.waterfall.y, bottom: LEVEL9.waterfall.y + LEVEL9.waterfall.height });
+  scene.events.once('shutdown', unregisterFall);
   scene.physics.add.overlap(scene.player, state.caveZone, player => {
     if (player.y > LEVEL9.waterfall.y - 5) revealCave(scene, state);
   });
@@ -274,6 +278,7 @@ export function attachLevel9Highlands(scene) {
     if (!state.secretRevealed || relic.getData('collected')) return;
     relic.setData('collected', true).disableBody(true, true);
     scene.coins++;
+    sfx(scene).play('treasure');
     scene.score += 350;
     scene.updateHUD();
     scene.playCoinFeedback(relic.x, relic.y);

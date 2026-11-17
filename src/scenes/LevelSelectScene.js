@@ -3,6 +3,7 @@ import { button, label } from '../ui.js';
 import { PROVINCE_ROUTE, TOTAL_LEVELS } from '../levels/provinceRoute.js';
 import { prepareProvinceSceneryTexture } from '../provinceScenery.js';
 import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
+import { sfx } from '../audio/soundManager.js';
 
 const LIST_TOP = 148;
 const LIST_BOTTOM = 378;
@@ -86,8 +87,8 @@ export class LevelSelectScene extends Phaser.Scene {
     label(this, 560, 410, 'SWIPE THE LIST OR DRAG THE GOLD HANDLE', 9, '#c5b69d');
     if (this.input.keyboard) {
       this.input.keyboard.once('keydown-ESC', back);
-      this.input.keyboard.on('keydown-DOWN', () => this.setListScroll(this.listScroll + ROW_HEIGHT));
-      this.input.keyboard.on('keydown-UP', () => this.setListScroll(this.listScroll - ROW_HEIGHT));
+      this.input.keyboard.on('keydown-DOWN', () => { sfx(this).play('menuMove'); this.setListScroll(this.listScroll + ROW_HEIGHT); });
+      this.input.keyboard.on('keydown-UP', () => { sfx(this).play('menuMove'); this.setListScroll(this.listScroll - ROW_HEIGHT); });
       this.events.once('shutdown', () => {
         this.input.keyboard?.off('keydown-DOWN');
         this.input.keyboard?.off('keydown-UP');

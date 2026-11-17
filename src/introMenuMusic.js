@@ -1,4 +1,4 @@
-import { audioSettings } from './audioSettings.js';
+import { musicVolume } from './audioSettings.js';
 
 const MUSIC_KEY = 'intro-menu-music';
 
@@ -7,7 +7,7 @@ export function ensureIntroMenuMusic(scene) {
   let music = manager.get(MUSIC_KEY);
   if (!music) music = manager.add(MUSIC_KEY, { loop: true, volume: 0 });
   music.setLoop(true);
-  music.setVolume(audioSettings.music ? 0.3 : 0);
+  music.setVolume(musicVolume(0.3));
   if (!music.isPlaying) music.play();
   return music;
 }

@@ -26,6 +26,9 @@ import elephantPlatform from './elephantPlatform.js';
 import chargingBoar from './chargingBoar.js';
 import secretArea from './secretArea.js';
 import tutorialHint from './tutorialHint.js';
+import dolphinPlatform from './dolphinPlatform.js';
+import driftingRaft from './driftingRaft.js';
+import divingBird from './divingBird.js';
 
 const MECHANICS = new Map();
 
@@ -37,7 +40,8 @@ export function registerMechanic(definition) {
 }
 
 [movingPlatform, sinkingPlatform, risingWater, autoScrollCamera, windZone, checkpoint, spikes, miniBoss,
-  waterCurrent, elephantPlatform, chargingBoar, secretArea, tutorialHint]
+  waterCurrent, elephantPlatform, chargingBoar, secretArea, tutorialHint,
+  dolphinPlatform, driftingRaft, divingBird]
   .forEach(registerMechanic);
 
 // Create every mechanic a stage asks for and drive them until the scene shuts down.

@@ -19,9 +19,9 @@ export function button(scene, x, y, w, title, action, primary = false, border = 
   const caption = label(scene, 0, 0, title, 15, primary ? '#202b39' : '#eaf1ff');
   group.add([bg, caption]);
   group.setSize(w, 44).setInteractive({ useHandCursor: true });
-  group.on('pointerover', () => group.setScale(1.035));
+  group.on('pointerover', () => { group.setScale(1.035); sfx(scene).play('menuMove'); });
   group.on('pointerout', () => group.setScale(1));
-  group.on('pointerdown', action);
+  group.on('pointerdown', (...args) => { sfx(scene).play('uiTap'); action(...args); });
   return group;
 }
 export function backdrop(scene) {
@@ -61,11 +61,17 @@ export function landscape(scene, x, y) {
 }
 
 import { audioSettings } from './audioSettings.js';
+import { sfx } from './audio/soundManager.js';
+
+// Older call sites use the original file keys; map them to sound-manager names.
+const LEGACY_SFX = { win: 'levelClear', lose: 'gameOver' };
 
 export function playSound(scene, key, options) {
-  // A failed audio download or unavailable decoder should not stop the game.
-  const isMusic = key.startsWith('bgm-');
-  if (scene.cache.audio.exists(key) && audioSettings[isMusic ? 'music' : 'sound']) {
-    scene.sound.play(key, options);
+  // Music keeps playing through Phaser's sound manager exactly as before.
+  if (key.startsWith('bgm-')) {
+    if (scene.cache.audio.exists(key) && audioSettings.music) scene.sound.play(key, options);
+    return;
   }
+  // Everything else is a sound effect: pooled voices, SFX volume, pause handling.
+  sfx(scene).play(LEGACY_SFX[key] || key, { rate: options?.rate });
 }

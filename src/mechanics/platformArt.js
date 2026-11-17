@@ -8,7 +8,8 @@ const PLANK_STYLES = {
   stone: { base: '#8f805f', light: '#cdb98a', dark: '#4f4535', seam: '#655a45' },
   wood: { base: '#8a5a34', light: '#c8955a', dark: '#4a2f1c', seam: '#5f3d24' },
   bamboo: { base: '#b9a259', light: '#e6d48a', dark: '#6e5f2c', seam: '#8a7a3a' },
-  log: { base: '#7a5232', light: '#b07a4a', dark: '#3e2818', seam: '#55361f' }
+  log: { base: '#7a5232', light: '#b07a4a', dark: '#3e2818', seam: '#55361f' },
+  raft: { base: '#9a6a3a', light: '#d0a066', dark: '#4e3420', seam: '#6a4628' }
 };
 
 export function platformTexture(scene, style = 'ground', province = scene.province) {
@@ -28,7 +29,12 @@ export function platformTexture(scene, style = 'ground', province = scene.provin
     const rect = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
     for (const ox of [0, 18]) {
       rect(ox, 0, 18, 18, colors.seam);
-      if (style === 'log') {
+      if (style === 'raft') {
+        // Side view of lashed logs: rounded log row with rope bindings.
+        rect(ox, 1, 18, 9, colors.base); rect(ox, 1, 18, 2, colors.light); rect(ox, 8, 18, 2, colors.dark);
+        for (const rx of [4, 13]) { rect(ox + rx, 1, 2, 9, '#d8c48a'); rect(ox + rx, 4, 2, 1, '#8a7440'); }
+        ctx.clearRect(ox, 10, 18, 8); ctx.clearRect(ox, 0, 18, 1);
+      } else if (style === 'log') {
         // A round floating log: highlight on top, bark lines, darker underside.
         rect(ox, 1, 18, 11, colors.base); rect(ox, 1, 18, 2, colors.light); rect(ox, 10, 18, 2, colors.dark);
         for (let x = 2; x < 18; x += 5) rect(ox + x, 4 + (x % 3), 3, 1, colors.dark);
@@ -45,7 +51,7 @@ export function platformTexture(scene, style = 'ground', province = scene.provin
         }
       }
     }
-    if (style !== 'log') { rect(0, 0, 18, 2, colors.light); rect(0, 2, 18, 1, colors.dark); }   // top frame edge
+    if (style !== 'log' && style !== 'raft') { rect(0, 0, 18, 2, colors.light); rect(0, 2, 18, 1, colors.dark); }   // top frame edge
     texture.add('top', 0, 0, 0, 18, 18);
     texture.add('fill', 0, 18, 0, 18, 18);
     texture.refresh();

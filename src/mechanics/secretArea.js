@@ -1,6 +1,7 @@
 import { playSound } from '../ui.js';
 import { platformTexture } from './platformArt.js';
 import { bodyInRect } from './helpers.js';
+import { sfx } from '../audio/soundManager.js';
 
 // A hidden room. A rock cover hides it until the player steps inside; then the cover
 // fades away, a dim cave interior shows, and a one-time bonus is awarded.
@@ -32,7 +33,7 @@ export default {
         scene.tweens.add({ targets: cover, alpha: 0, duration: 450, onComplete: () => cover.setVisible(false) });
         scene.score += bonus;
         scene.updateHUD();
-        playSound(scene, 'coin', { volume: 0.6, rate: 1.2 });
+        sfx(scene).play('secret');
         scene.showFloatingText(x + width / 2, y - 6, `${label}  +${bonus}`, '#ffe69b');
       },
       destroy() { interior.destroy(); drips.forEach(d => d.destroy()); cover.destroy(); }

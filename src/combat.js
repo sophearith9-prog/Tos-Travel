@@ -1,118 +1,33 @@
 import { touchControls } from './mobileControls.js';
 import { damageBoss, updateFinalBoss } from './finalBoss.js';
-import { audioSettings } from './audioSettings.js';
+import { sfx } from './audio/soundManager.js';
 
-// Synthesize short, original guardian cues through Phaser's Web Audio context.
-// This keeps the enemy audible without adding or downloading external audio files.
-function playGuardianSound(scene, kind) {
-  if (!audioSettings.sound) return;
-  const manager = scene.sound;
-  const context = manager?.context;
-  if (!context?.createOscillator) return;
-  const profiles = {
-    step:   { from: 105, to: 48, duration: 0.12, peak: 0.11, wave: 'square', cutoff: 420 },
-    jump:   { from: 210, to: 82, duration: 0.24, peak: 0.10, wave: 'triangle', cutoff: 900 },
-    attack: { from: 170, to: 42, duration: 0.34, peak: 0.16, wave: 'sawtooth', cutoff: 720 },
-    impact: { from: 92, to: 35, duration: 0.18, peak: 0.18, wave: 'square', cutoff: 300 }
-  };
-  const sound = profiles[kind];
-  if (!sound) return;
-  const now = context.currentTime;
-  const oscillator = context.createOscillator();
-  const filter = context.createBiquadFilter();
-  const gain = context.createGain();
-  const destination = manager.masterVolumeNode || context.destination;
-  oscillator.type = sound.wave;
-  oscillator.frequency.setValueAtTime(sound.from, now);
-  oscillator.frequency.exponentialRampToValueAtTime(sound.to, now + sound.duration);
-  filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(sound.cutoff, now);
-  filter.frequency.exponentialRampToValueAtTime(Math.max(100, sound.cutoff * 0.45), now + sound.duration);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(sound.peak, now + 0.018);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + sound.duration);
-  oscillator.connect(filter);
-  filter.connect(gain);
-  gain.connect(destination);
-  oscillator.start(now);
-  oscillator.stop(now + sound.duration + 0.01);
+// Enemy and sword sounds go through the sound manager (src/audio/soundManager.js):
+// buffers are prepared once and voices are pooled, instead of building new oscillators,
+// filters and noise buffers for every footstep and swing.
+// Guardian cues are positional: they fade with distance from the camera and pan.
+function playGuardianSound(scene, kind, enemy) {
+  const big = enemy?.enemyKind === 'stone-guardian' || enemy?.isBoss;
+  const name = { step: 'guardianStep', jump: 'guardianJump', impact: 'impact',
+    attack: big ? 'bossWarn' : 'guardianAttack' }[kind];
+  if (!name) return;
+  // Big guardians' attack wind-up is a priority warning: always heard, not positional.
+  if (name === 'bossWarn') { sfx(scene).play(name); return; }
+  const x = enemy?.x ?? scene.player.x, y = enemy?.y ?? scene.player.y;
+  sfx(scene).playAt(scene, name, x, y);
 }
 
-function playSwordSound(scene, kind, weight = 0) {
-  if (!audioSettings.sound) return;
-  const manager = scene.sound;
-  const context = manager?.context;
-  if (!context?.createOscillator || !context?.createBuffer) return;
-  const destination = manager.masterVolumeNode || context.destination;
-  const now = context.currentTime;
-
+// kind 'swing': combo 0-2 rise in pitch, combo 3 is the heavy finisher.
+// kind 'impact': stone or creature hit; kind 'deflect': rock parried back.
+function playSwordSound(scene, kind, weight = 0, enemy = null) {
   if (kind === 'swing') {
-    const duration = 0.16 + weight * 0.015;
-    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
-    const samples = buffer.getChannelData(0);
-    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const gain = context.createGain();
-    source.buffer = buffer;
-    filter.type = 'bandpass';
-    filter.Q.value = 0.7;
-    filter.frequency.setValueAtTime(2400 + weight * 180, now);
-    filter.frequency.exponentialRampToValueAtTime(520, now + duration);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(0.17 + Math.min(weight, 3) * 0.018, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    source.connect(filter);
-    filter.connect(gain);
-    gain.connect(destination);
-    source.start(now);
-    source.stop(now + duration);
-
-    // A short bright tone makes the sword slash read clearly over the music.
-    const bladeTone = context.createOscillator();
-    const bladeGain = context.createGain();
-    bladeTone.type = 'triangle';
-    bladeTone.frequency.setValueAtTime(1180 + weight * 90, now);
-    bladeTone.frequency.exponentialRampToValueAtTime(430, now + 0.105);
-    bladeGain.gain.setValueAtTime(0.0001, now);
-    bladeGain.gain.linearRampToValueAtTime(0.055, now + 0.008);
-    bladeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
-    bladeTone.connect(bladeGain);
-    bladeGain.connect(destination);
-    bladeTone.start(now);
-    bladeTone.stop(now + 0.12);
-    return;
+    sfx(scene).play(['swing1', 'swing2', 'swing3', 'swingFinisher'][Math.min(3, weight)]);
+  } else if (kind === 'deflect') {
+    sfx(scene).play('deflect');
+  } else {
+    const stone = enemy?.enemyKind === 'stone-guardian' || enemy?.isBoss;
+    sfx(scene).play(stone ? 'hitStone' : 'hitAnimal', { volume: weight > 0 ? 1.2 : 1, rate: weight > 0 ? 0.9 : 1 });
   }
-
-  const volume = weight > 0 ? 0.11 : 0.065;
-  const duration = weight > 0 ? 0.32 : 0.22;
-  const variation = 1 + (Math.random() - 0.5) * 0.06;
-  for (const [frequency, partialVolume] of [[210, 0.4], [487, 0.55], [793, 0.32], [1160, 0.16]]) {
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(frequency * variation * (1 + weight * 0.035), now);
-    oscillator.frequency.exponentialRampToValueAtTime(frequency * variation * 0.72, now + duration);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime(volume * partialVolume, now + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(gain);
-    gain.connect(destination);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.01);
-  }
-  const thud = context.createOscillator();
-  const thudGain = context.createGain();
-  thud.type = 'sine';
-  thud.frequency.setValueAtTime(weight > 0 ? 105 : 78, now);
-  thud.frequency.exponentialRampToValueAtTime(42, now + 0.12);
-  thudGain.gain.setValueAtTime(0.0001, now);
-  thudGain.gain.linearRampToValueAtTime(weight > 0 ? 0.16 : 0.09, now + 0.006);
-  thudGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
-  thud.connect(thudGain);
-  thudGain.connect(destination);
-  thud.start(now);
-  thud.stop(now + 0.16);
 }
 
 function getEnemyHeadPoint(enemy) {
@@ -153,7 +68,7 @@ export function damageEnemy(scene, enemy, finisher = false, swordStrike = false)
   const killingBlow = enemy.hitPoints <= 1;
   const heavyImpact = finisher || (swordStrike && killingBlow);
   const highComboImpact = swordStrike && (scene.comboCount || 0) >= 5;
-  if (swordStrike) playSwordSound(scene, 'impact', heavyImpact ? 1 : 0);
+  if (swordStrike) playSwordSound(scene, 'impact', heavyImpact ? 1 : 0, enemy);
   const head = getEnemyHeadPoint(enemy);
   showEnemyBlood(scene, enemy, head.x, head.y);
   const burst = scene.add.graphics().setPosition(head.x, head.y + 5).setDepth(enemy.depth + 3);
@@ -375,7 +290,7 @@ function reflectRock(scene, rock) {
   const distance = Math.max(1, Math.hypot(dx, dy));
   rock.setVelocity(dx / distance * 390, dy / distance * 390);
   scene.showFloatingText(rock.x, rock.y - 12, 'RETURN!', '#9fe8ff');
-  playSwordSound(scene, 'impact', 0);
+  playSwordSound(scene, 'deflect');
 }
 
 function patrolSurface(scene, column, row) {
@@ -472,7 +387,7 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
           const strong = choice >= 0.4;
           enemy.airSpeed = strong ? 125 + Math.random() * 25 : 65 + Math.random() * 20;
           enemy.setVelocityY(strong ? -285 : -145);
-          if (Math.abs(scene.player.x - enemy.x) < 420) playGuardianSound(scene, 'jump');
+          playGuardianSound(scene, 'jump', enemy);
         }
       }
     } else if (wall || gap) {
@@ -484,7 +399,7 @@ export function roamEnemy(scene, enemy, now, speed = scene.enemySpeed) {
   const targetSpeed = (enemy.airSpeed || speed) * enemy.patrolDirection;
   enemy.setVelocityX(Phaser.Math.Linear(body.velocity.x, targetSpeed, 0.28));
   if (body.blocked.down && Math.abs(targetSpeed) > 30 && now >= enemy.nextFootstep) {
-    if (Math.abs(scene.player.x - enemy.x) < 420) playGuardianSound(scene, 'step');
+    playGuardianSound(scene, 'step', enemy);
     enemy.nextFootstep = now + 430;
   }
   enemy.setFlipX(enemy.patrolDirection > 0);
@@ -584,14 +499,14 @@ export function updateCombat(scene) {
         enemy.setFlipX(dx > 0);
         enemy.attackUntil = now + 720;
         enemy.nextAttack = now + 1900;
-        playGuardianSound(scene, 'attack');
+        playGuardianSound(scene, 'attack', enemy);
         enemy.play('stone-guardian-slam', true);
         scene.time.delayedCall(390, () => {
           if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished ||
               scene.time.now < (enemy.stunnedUntil || 0) || !scene.player.body?.enable) return;
           if (Math.abs(scene.player.x - enemy.x) < 58 &&
               Math.abs(scene.player.body.center.y - enemy.body.center.y) < 38) {
-            playGuardianSound(scene, 'impact');
+            playGuardianSound(scene, 'impact', enemy);
             scene.handlePlayerEnemyCollision(scene.player, enemy, true);
           }
         });
@@ -604,12 +519,12 @@ export function updateCombat(scene) {
         enemy.attackUntil = now + 760;
         enemy.nextAttack = now + 2200;
         enemy.play('stone-guardian-throw', true);
-        playGuardianSound(scene, 'attack');
+        playGuardianSound(scene, 'attack', enemy);
         scene.time.delayedCall(420, () => {
           if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished ||
               scene.time.now < (enemy.stunnedUntil || 0)) return;
           const rock = throwRock(scene, enemy);
-          if (rock) playGuardianSound(scene, 'impact');
+          if (rock) playGuardianSound(scene, 'impact', enemy);
         });
         return;
       }
@@ -629,13 +544,13 @@ export function updateCombat(scene) {
         enemy.setFlipX(dx > 0);
         enemy.attackUntil = now + 650;
         enemy.nextAttack = now + 1200;
-        playGuardianSound(scene, 'attack');
+        playGuardianSound(scene, 'attack', enemy);
         enemy.play(`guardian-attack-${enemy.guardianVariant}`);
         scene.time.delayedCall(220, () => {
           if (!enemy.active || !enemy.body?.enable || scene.isLevelFinished || !scene.player.body?.enable) return;
           if (Math.abs(scene.player.x - enemy.x) < 32 &&
               Math.abs(scene.player.body.center.y - enemy.body.center.y) < 26) {
-            playGuardianSound(scene, 'impact');
+            playGuardianSound(scene, 'impact', enemy);
             scene.handlePlayerEnemyCollision(scene.player, enemy, true);
           }
         });
@@ -652,7 +567,7 @@ export function updateCombat(scene) {
       enemy.setVelocityX(0);
       enemy.attackUntil = now + 700;
       enemy.nextAttack = now + 3000;
-      playGuardianSound(scene, 'attack');
+      playGuardianSound(scene, 'attack', enemy);
       enemy.play(`guardian-attack-${enemy.guardianVariant}`);
       // The raised-arm and extended-arm frames now form the rock-throw animation.
       scene.time.delayedCall(350, () => {

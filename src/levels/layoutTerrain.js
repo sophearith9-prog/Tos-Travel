@@ -10,6 +10,9 @@ export function installLayoutTerrain(scene, layout) {
     drawPlatform(scene, p.x, p.y, p.width, height, p.style || layout.terrainStyle);
     const body = scene.add.rectangle(p.x + p.width / 2, p.y + height / 2, p.width, height, 0xffffff, 0);
     group.add(body);
+    // Footstep surface for planks and stone (biome ground uses the level default).
+    const style = p.style || layout.terrainStyle;
+    if (style !== 'ground') body.setData('surface', style === 'stone' ? 'stone' : 'wood');
     if (p.oneWay) {
       body.body.checkCollision.down = false;
       body.body.checkCollision.left = false;

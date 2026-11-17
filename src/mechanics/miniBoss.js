@@ -1,5 +1,6 @@
 import { playSound } from '../ui.js';
 import { throwRock } from '../combat.js';
+import { sfx } from '../audio/soundManager.js';
 
 // Mini-boss base class. Spawns a stone guardian into scene.enemies, so the existing
 // combat rules apply (sword hits, reflected rocks, stun, knock-back, death tween), but
@@ -96,6 +97,7 @@ export class MiniBoss {
     s.attackUntil = now + 720;
     s.nextAttack = now + this.tuning.attackCooldown;
     s.play('stone-guardian-slam', true);
+    sfx(this.scene).play('bossWarn');   // priority warning before the slam lands
     this.scene.time.delayedCall(390, () => {
       const player = this.scene.player;
       if (!s.active || !s.body?.enable || this.defeated || this.scene.isLevelFinished) return;
@@ -112,6 +114,7 @@ export class MiniBoss {
     s.attackUntil = now + 760;
     this.nextThrow = now + this.tuning.throwCooldown;
     s.play('stone-guardian-throw', true);
+    sfx(this.scene).playAt(this.scene, 'guardianAttack', s.x, s.y);
     this.scene.time.delayedCall(420, () => { if (!this.defeated) throwRock(this.scene, s); });
   }
 
