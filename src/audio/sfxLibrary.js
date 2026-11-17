@@ -168,6 +168,10 @@ const SYNTHS = {
   deflect: sr => { const o = make(sr, 0.6); for (const [f, a] of [[840, 1], [1290, 0.7], [1960, 0.5], [2840, 0.35], [3710, 0.2]]) tone(o, sr, { dur: 0.58, f0: f, decay: 0.12 + 60 / f, vol: a * 0.5 }); burst(o, sr, { dur: 0.02, hp: 3000, decay: 0.004, vol: 0.6, seed: 44 }); return normalize(o); },
   treasure: sr => { const o = make(sr, 0.7); [1047, 1319, 1568, 2093].forEach((f, i) => bell(o, sr, i * 0.07, f, 0.45, 0.4)); return normalize(o); },
   secret: sr => { const o = make(sr, 1.4); [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => bell(o, sr, i * 0.09, f, 0.9, 0.35)); tone(o, sr, { start: 0.5, dur: 0.9, f0: 2093, decay: 0.4, vol: 0.15, vibrato: 0.01 }); return normalize(o); },
+  // Sealed flag: a dull metallic clunk with a low thud.
+  locked: sr => { const o = make(sr, 0.34); tone(o, sr, { dur: 0.16, f0: 240, f1: 170, wave: 'square', decay: 0.05, vol: 0.45 }); for (const [f, a] of [[620, 0.5], [935, 0.35], [1410, 0.2]]) tone(o, sr, { dur: 0.3, f0: f, decay: 0.07, vol: a }); burst(o, sr, { dur: 0.05, bp: 2400, q: 1.2, decay: 0.012, vol: 0.7, seed: 71 }); tone(o, sr, { dur: 0.12, f0: 95, f1: 55, decay: 0.04, vol: 0.6 }); return normalize(o, 0.85); },
+  // Unseal: chains shatter, then a rising temple-bell flourish.
+  unseal: sr => { const o = make(sr, 1.5); const r = rng(72); for (let i = 0; i < 10; i++) { const t = i * 0.022 + Math.abs(r()) * 0.02; burst(o, sr, { start: t, dur: 0.05, hp: 2800, decay: 0.012, vol: 0.5, seed: 73 + i }); tone(o, sr, { start: t, dur: 0.12, f0: 1800 + Math.abs(r()) * 1800, decay: 0.03, vol: 0.18 }); } tone(o, sr, { dur: 0.3, f0: 110, f1: 60, decay: 0.09, vol: 0.5 }); [587, 740, 880, 1175].forEach((f, i) => bell(o, sr, 0.28 + i * 0.1, f, 0.9, 0.42)); return normalize(o); },
   checkpoint: sr => { const o = make(sr, 0.9); bell(o, sr, 0, 784, 0.6, 0.5); bell(o, sr, 0.16, 1175, 0.7, 0.5); return normalize(o); },
   splash: sr => { const o = make(sr, 0.55); burst(o, sr, { dur: 0.5, bp: 900, q: 0.8, attack: 0.005, decay: 0.15, vol: 1, seed: 51 }); burst(o, sr, { dur: 0.3, hp: 2500, decay: 0.06, vol: 0.4, seed: 52 }); for (let i = 0; i < 5; i++) tone(o, sr, { start: 0.1 + i * 0.06, dur: 0.05, f0: 500 + i * 90, f1: 900 + i * 120, decay: 0.015, vol: 0.18 }); return normalize(o); },
   logSink: sr => { const o = make(sr, 0.8); const r = rng(53); for (let i = 0; i < 9; i++) tone(o, sr, { start: i * 0.08 + Math.abs(r()) * 0.03, dur: 0.07, f0: 180 + Math.abs(r()) * 160, f1: 320 + Math.abs(r()) * 220, decay: 0.025, vol: 0.4 }); burst(o, sr, { dur: 0.7, lp: 400, attack: 0.1, decay: 0.25, vol: 0.4, seed: 54 }); return normalize(o, 0.8); },
@@ -258,6 +262,8 @@ export const SOUNDS = {
   treasure: { synth: 'treasure', volume: 0.5 },
   secret: { synth: 'secret', volume: 0.6, pitchVar: 0, max: 1 },
   // World
+  locked: { synth: 'locked', volume: 0.5, pitchVar: 0.03, cooldown: 250 },
+  unseal: { synth: 'unseal', volume: 0.65, pitchVar: 0, max: 1 },
   checkpoint: { synth: 'checkpoint', volume: 0.55, pitchVar: 0 },
   levelClear: { file: 'win', volume: 0.55, pitchVar: 0, max: 1 },
   splash: { synth: 'splash', volume: 0.55, range: 420 },

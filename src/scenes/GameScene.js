@@ -18,6 +18,7 @@ import { prepareCharacterSkin, PLAYER_CHARACTER_NAME } from '../characterSkin.js
 import { prepareEnemySkin } from '../enemySkin.js';
 import { addFinishTemple } from '../finishTemple.js';
 import { addFinishFlag } from '../finishFlag.js';
+import { installFlagSeal } from '../flagSeal.js';
 import { addCambodiaJourney } from '../cambodiaJourney.js';
 import { addAngkorWatBackdrop } from '../angkorWatBackdrop.js';
 import { prepareAngkorGround } from '../angkorGround.js';
@@ -103,6 +104,8 @@ export class GameScene extends Phaser.Scene {
     // Hand-made layout for stages 10-28 (null = generated stage or Levels 1-9).
     this.layout = this.currentLevel >= 10 ? getLayout(this.currentLevel) : null;
     this.mechanics = [];
+    this.finishHouse = null;
+    this.finishHouseFooting = null;
     this.patrolTerrain = null;
     this.activeCheckpoint = null;
     this.goalLocks = [];          // functions returning a hint while the flag is locked
@@ -342,6 +345,7 @@ export class GameScene extends Phaser.Scene {
       this.layout || this.currentLevel === 6 || this.currentLevel === 7 || this.currentLevel === 8 || this.currentLevel === 9 ? null : this.hitCoinBlock,
       this.currentLevel === 6 ? () => this.time.now >= this.level6DropUntil : null, this);
     if (this.level6Gate) this.physics.add.collider(this.player, this.level6Gate.blocker);
+    if (this.finishHouseFooting) this.physics.add.collider(this.player, this.finishHouseFooting);
 
     // Spawn Coins from level config
     this.coinsGroup = this.physics.add.staticGroup();
@@ -361,6 +365,9 @@ export class GameScene extends Phaser.Scene {
     this.coinTotal = this.coinsGroup.getLength()
       + [...(this.coinBlocks?.values() || [])].reduce((sum, block) => sum + (block.coins || 0), 0);
     this.levelStartedAt = this.time.now;
+    this.pausedMs = 0;             // time spent in the pause menu (not counted as stage time)
+    this.levelFinishedAt = null;
+    this.pushbackUntil = 0;
     this.lifeItems = this.physics.add.group();
     this.physics.add.collider(this.lifeItems, this.collisionGround);
     this.physics.add.overlap(this.player, this.lifeItems, this.collectLifeItem, null, this);
@@ -457,11 +464,8 @@ export class GameScene extends Phaser.Scene {
       : this.add.zone(flagPixelX, 99, 48, 198);
     this.physics.add.existing(this.goal, true);
     this.physics.add.overlap(this.player, this.goal, this.reachGoal, null, this);
-    this.goalLabel = this.currentLevel === 2 || this.currentLevel === 3
-      ? this.add.text(flagPixelX + 25, 145, 'SEALED', {
-      fontSize: '12px', color: '#ffd700', fontStyle: 'bold',
-      stroke: '#000000', strokeThickness: 3
-    }).setOrigin(0.5).setDepth(10) : null;
+    // Sealed flags (Levels 2-3, miniBoss stages) are drawn by src/flagSeal.js, installed after the HUD.
+    this.goalLabel = null;
     // Camera setup with level sky color
     this.cameras.main.setBackgroundColor(config.skyColor || '#5c94fc');
     this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
@@ -507,6 +511,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.layout || this.layout.finalBoss) installFinalBoss(this);
     else { this.boss = null; }
     if (this.layout) this.mechanics = installMechanics(this, layoutMechanics(this.layout));
+    // After the HUD and mechanics: the seal adds a HUD tracker and may lock on a miniBoss.
+    this.flagSeal = installFlagSeal(this);
     if (this.currentLevel === TOTAL_LEVELS && this.input.keyboard) {
       this.screenText(18, 110, 'HOLD SHIFT + MOVE: SPRINT', {
         fontSize: '12px', fontStyle: 'bold', color: '#87d7ca',
@@ -562,7 +568,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   pauseGame() {
-    if (!this.scene.isActive() || this.scene.isActive('PauseScene')) return;
+    if (!this.scene.isActive() || this.scene.isActive('PauseScene') || this.stageClearOpen) return;
+    const pausedAt = this.game.loop.time;
+    this.events.once('resume', () => { this.pausedMs += this.game.loop.time - pausedAt; });
     sfx(this).play('pause');
     const music = this.sound.get(this.musicKey);
     const resumeMusic = !!music?.isPlaying;
@@ -578,7 +586,7 @@ export class GameScene extends Phaser.Scene {
   // Numbers shown in the pause menu's level summary.
   pauseSummary() {
     const collected = Math.max(0, this.coins - (this.levelStartCoins || 0));
-    const seconds = Math.max(0, Math.floor((this.time.now - (this.levelStartedAt || 0)) / 1000));
+    const seconds = this.stageSeconds();
     return {
       level: this.currentLevel,
       name: this.levelConfig?.title || '',
@@ -586,6 +594,29 @@ export class GameScene extends Phaser.Scene {
       coinTotal: Math.max(collected, this.coinTotal || 0),
       score: this.score,
       time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+    };
+  }
+
+  // Seconds of play in this stage, without time spent paused; frozen once the flag is reached.
+  stageSeconds() {
+    const end = this.levelFinishedAt ?? this.time.now;
+    return Math.max(0, Math.floor((end - (this.levelStartedAt || 0) - (this.pausedMs || 0)) / 1000));
+  }
+
+  // Everything the Stage Clear card needs (src/levelClear.js).
+  finishSummary() {
+    const summary = this.pauseSummary();
+    const secretAreas = (this.mechanics || []).filter(mechanic => mechanic.type === 'secretArea');
+    let secretTotal = secretAreas.length, secrets = secretAreas.filter(area => area.found).length;
+    if (this.currentLevel === 9 && this.level9Highlands) {
+      secretTotal++;
+      if (this.level9Highlands.secretRevealed) secrets++;
+    }
+    return {
+      level: this.currentLevel,
+      coins: summary.coins, coinTotal: summary.coinTotal,
+      score: Math.max(0, this.score - (this.levelStartScore || 0)), totalScore: this.score,
+      seconds: this.stageSeconds(), secrets, secretTotal
     };
   }
 
@@ -960,16 +991,7 @@ export class GameScene extends Phaser.Scene {
       });
       this.hudContainer.add([this.level6ObjectiveText, routeHint]);
     }
-    if (this.currentLevel === 3) {
-      this.level3ObjectiveCheck = this.add.graphics().setY(-14);   // checkbox sits under the compact HUD
-      this.level3ObjectiveText = this.add.text(31, 54, 'Defeat Stone Guardian', {
-        fontFamily: 'Trebuchet MS, Arial, sans-serif', fontSize: '11px',
-        fontStyle: 'bold', color: '#fff0bc',
-        stroke: '#100905', strokeThickness: 4, backgroundColor: 'rgba(8, 12, 20, 0.55)', padding: { left: 4, right: 4, top: 1, bottom: 1 }
-      }).setOrigin(0, 0.5);
-      this.hudContainer.add([this.level3ObjectiveCheck, this.level3ObjectiveText]);
-      this.drawLevel3ObjectiveCheck();
-    }
+    // Level 3's objective tracker lives in src/flagSeal.js.
   }
 
   // Called every frame and after any health/shield change; the HUD only redraws what changed.
@@ -1458,6 +1480,10 @@ export class GameScene extends Phaser.Scene {
   // Complete Finish Cutscene Sequence
   reachGoal(player, goal) {
     if (this.isLevelFinished) return;
+    if (this.flagSeal && !this.flagSeal.isOpen()) {
+      this.flagSeal.touch(player);
+      return;
+    }
     // Mechanics (e.g. a mini-boss) can lock the flag on hand-made stages.
     const lock = this.goalLocks.map(check => check()).find(Boolean);
     if (lock) {
@@ -1509,14 +1535,19 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.isLevelFinished = true;
+    this.levelFinishedAt = this.time.now;
     this.rockProjectiles?.clear(true, true);
     if (this.finishFlag) {
+      // The flag slides to the top of the pole, flutters fast and bursts with sparkles.
       this.finishFlag.setVisible(true);
+      this.finishFlag.setWind?.('fast', 1800, 'normal');
+      this.finishFlag.burst?.();
       this.tweens.add({
         targets: this.finishFlag,
         y: this.finishFlag.getData('raisedY'),
         duration: 900,
-        ease: 'Sine.easeInOut'
+        ease: 'Sine.easeInOut',
+        onComplete: () => this.finishFlag?.burst?.()
       });
     }
 
@@ -1564,7 +1595,10 @@ export class GameScene extends Phaser.Scene {
               this.triggerCastleFireworks();
               return;
             }
-            if (this.currentLevel >= 3) {
+            if (this.finishHouse) {
+              // Stilt house: climb the stairs and step through the glowing door (src/finishHouse.js).
+              this.finishHouse.enter(player, () => this.triggerCastleFireworks());
+            } else if (this.currentLevel >= 3) {
               this.tweens.add({ targets: player, x: this.castleDoorX,
                 y: finishFloorY - 29, duration: 450, ease: 'Linear',
                 onComplete: () => this.triggerCastleFireworks() });
@@ -1726,7 +1760,9 @@ export class GameScene extends Phaser.Scene {
     }
     const movementRate = targetVelocityX === 0 ? 18 : 24;
     const movementBlend = 1 - Math.exp(-movementRate * frameDelta / 1000);
-    this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, movementBlend));
+    if (this.time.now >= (this.pushbackUntil || 0)) {
+      this.player.setVelocityX(Phaser.Math.Linear(this.player.body.velocity.x, targetVelocityX, movementBlend));
+    }
 
     if (jumpPressed && this.jumpsUsed < 2 && !dropping) {
       const doubleJump = this.jumpsUsed === 1 && !grounded;

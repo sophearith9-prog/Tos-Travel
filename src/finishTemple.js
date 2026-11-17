@@ -1,4 +1,5 @@
 import { bakeCentered } from './bakeGraphics.js';
+import { addFinishHouse } from './finishHouse.js';
 
 // A small, code-drawn Angkor Wat-inspired silhouette with five lotus towers.
 export function addFinishTemple(scene, map) {
@@ -16,10 +17,13 @@ export function addFinishTemple(scene, map) {
   });
   // Level 2 finishes at the flag, without a temple or the original castle tiles.
   if (scene.currentLevel === 2) return;
+  // Level 9 finishes at its own sealed crater gate; the house there was hidden behind the terrain art.
+  if (scene.currentLevel === 9) return;
   if (scene.currentLevel >= 3) {
-    scene.textures.get('khmer-finish-house').setFilter(Phaser.Textures.FilterMode.LINEAR);
-    scene.add.image(center, ground, 'khmer-finish-house')
-      .setOrigin(0.5, 1).setDisplaySize(112, 80).setDepth(-1);
+    // Stilt-house finish (src/finishHouse.js). A middle depth layer is added where the stage has no
+    // painted panorama of its own (Levels 4 and 5 already have deep painted backdrops).
+    const painted = scene.currentLevel === 4 || scene.currentLevel === 5;
+    scene.finishHouse = addFinishHouse(scene, map, { midground: !painted, softSky: scene.currentLevel === 3 });
     return;
   }
   if (scene.currentLevel === 1 && scene.textures.exists('khmer-entrance-gate')) {

@@ -1,5 +1,19 @@
-import { backdrop, button, playSound } from '../ui.js';
-import { TOTAL_LEVELS } from '../levels/provinceRoute.js';
+import { backdrop } from '../ui.js';
+import { TOTAL_LEVELS, PROVINCE_ROUTE } from '../levels/provinceRoute.js';
+import { sfx } from '../audio/soundManager.js';
+import { fadeSceneIn, fadeToScene } from '../sceneTransitions.js';
+import { journeyMapSvg } from '../finishMap.js';
+import { journeyTotals, formatTime } from '../progress.js';
+import { ORNAMENT, ROMDOUL, STAR, mountOverlay, createTimeline, countStep, bindMenuKeys, formatNumber, escapeHtml } from '../levelClear.js';
+
+// Shown on the Victory screen. Add artwork and music sources here as `[role, credit]` pairs.
+export const CREDITS = [
+  ['Game engine', 'Phaser 3 (MIT licence)'],
+  ['Sound effects', 'Synthesized in the browser with Web Audio'],
+  ['Route', 'The 25 provinces of Cambodia']
+];
+const AUTHOR = 'Chiem Sopheaith';
+const STEP_MS = 110, START_MS = 450;   // one province lights up every STEP_MS
 
 export class VictoryScene extends Phaser.Scene {
   constructor() {
@@ -12,73 +26,92 @@ export class VictoryScene extends Phaser.Scene {
   }
 
   create() {
+    fadeSceneIn(this, 400);
     backdrop(this);
     this.sound.stopByKey('bgm-level-2');
     this.sound.stopByKey('bgm-default');
-    playSound(this, 'win', { volume: 0.5 });
+    sfx(this).play('victory');
 
-    // Confetti stays behind the winner card and is cleaned up with the scene.
-    const colors = [0xffd166, 0x60a5fa, 0x4ade80, 0xf472b6];
-    for (let i = 0; i < 48; i++) {
-      const confetti = this.add.rectangle(
-        Phaser.Math.Between(0, 800), Phaser.Math.Between(-450, 0),
-        5, 9, colors[i % colors.length]
-      );
-      this.tweens.add({
-        targets: confetti, y: 470, angle: 360,
-        duration: Phaser.Math.Between(2500, 5000),
-        delay: i * 35, repeat: -1
+    // Confetti falls behind the HTML card and is cleaned up with the scene.
+    const colors = [0xf0c978, 0xe7c891, 0x7fb7c9, 0xd88a6a];
+    for (let i = 0; i < 40; i++) {
+      const confetti = this.add.rectangle(Phaser.Math.Between(0, 800), Phaser.Math.Between(-450, 0), 4, 8, colors[i % colors.length]);
+      this.tweens.add({ targets: confetti, y: 470, angle: 360, duration: Phaser.Math.Between(3000, 6000), delay: i * 60, repeat: -1 });
+    }
+
+    const totals = journeyTotals(TOTAL_LEVELS);
+    const provinces = PROVINCE_ROUTE.length;
+    const rows = [
+      ['Stages', `<span data-stat="stages">0</span><small>/ ${TOTAL_LEVELS}</small>`],
+      ['Stars', `<span class="finish-inline-star">${STAR}</span><span data-stat="stars">0</span><small>/ ${TOTAL_LEVELS * 3}</small>`],
+      ['Coins', `<span data-stat="coins">0</span>${totals.coinTotal ? `<small>/ ${formatNumber(totals.coinTotal)}</small>` : ''}`],
+      ['Secrets', `<span data-stat="secrets">0</span><small>/ ${totals.secretTotal}</small>`],
+      ['Total time', `<span data-stat="time">0:00</span>`],
+      ['Final score', `<span data-stat="score">0</span>`]
+    ];
+
+    const overlay = mountOverlay(this, 'is-victory', 'victory-title', `
+      <div class="pause-panel finish-panel victory-panel">
+        <div class="pause-head">${ORNAMENT}<h2 id="victory-title">JOURNEY COMPLETE</h2>${ORNAMENT}</div>
+        <p class="pause-level">All ${TOTAL_LEVELS} stages · Cambodia explored</p>
+        <div class="victory-body">
+          <figure class="finish-map victory-map">
+            ${journeyMapSvg(STEP_MS, START_MS)}
+            <figcaption><span data-stat="provinces">0</span> / ${provinces} provinces</figcaption>
+          </figure>
+          <dl class="finish-stats victory-stats">
+            ${rows.map(([dt, dd]) => `<div><dt>${dt}</dt><dd>${dd}</dd></div>`).join('')}
+          </dl>
+        </div>
+        <section class="victory-credits" aria-label="Credits">
+          <p class="victory-author">Built by <strong>${escapeHtml(AUTHOR)}</strong></p>
+          <p class="victory-assets">${CREDITS.map(([role, credit]) => `<span><b>${escapeHtml(role)}</b> ${escapeHtml(credit)}</span>`).join('')}</p>
+        </section>
+        <nav class="finish-actions victory-actions" aria-label="Journey complete">
+          <button type="button" class="pause-btn" data-action="stages">${ROMDOUL}<span>Replay stages</span>${ROMDOUL}</button>
+          <button type="button" class="pause-btn is-primary" data-action="home">${ROMDOUL}<span>Home</span>${ROMDOUL}</button>
+        </nav>
+        <p class="pause-footer">Enter · Home &nbsp;·&nbsp; S · Replay stages &nbsp;·&nbsp; Tap to skip</p>
+      </div>`);
+    const $ = sel => overlay.querySelector(sel);
+
+    /* ---------- provinces light up one by one, totals count up ---------- */
+    const timeline = createTimeline(this);
+    for (let i = 0; i < provinces; i++) {
+      timeline.add(START_MS + i * STEP_MS, 0, () => {
+        $('[data-stat="provinces"]').textContent = String(i + 1);
+        if (!timeline.skipping) sfx(this).play('coin', { rate: 0.85 + i * 0.025, volume: 0.35 });
       });
     }
-
-    const card = this.add.graphics();
-    card.fillStyle(0x16213c, 0.97);
-    card.fillRoundedRect(110, 22, 580, 404, 22);
-    card.lineStyle(2, 0xffd166, 0.8);
-    card.strokeRoundedRect(110, 22, 580, 404, 22);
-
-    // Draw a trophy without requiring an extra image asset.
-    const trophy = this.add.graphics();
-    trophy.lineStyle(6, 0xffd166);
-    trophy.strokeCircle(374, 64, 14);
-    trophy.strokeCircle(426, 64, 14);
-    trophy.fillStyle(0xffd166);
-    trophy.fillRoundedRect(376, 42, 48, 48, 12);
-    trophy.fillRect(396, 86, 8, 18);
-    trophy.fillRoundedRect(380, 102, 40, 7, 3);
-    trophy.fillStyle(0xfff0b3);
-    trophy.fillRect(383, 49, 5, 23);
-
-    const text = (x, y, label, size, color = '#ffffff') => this.add.text(x, y, label, {
-      fontFamily: 'Arial, sans-serif', fontSize: size + 'px',
-      fontStyle: 'bold', color, align: 'center'
-    }).setOrigin(0.5);
-
-    text(400, 140, 'YOU WIN!', 42, '#ffd166');
-    text(400, 180, `Cambodia explored. All ${TOTAL_LEVELS} stages complete!`, 17, '#cbd5e1');
-
-    const stats = this.add.graphics();
-    stats.fillStyle(0x0b1228);
-    stats.fillRoundedRect(155, 212, 235, 72, 10);
-    stats.fillRoundedRect(410, 212, 235, 72, 10);
-    text(272, 232, 'FINAL SCORE', 12, '#94a3b8');
-    text(272, 260, String(this.finalScore), 26, '#4ade80');
-    text(528, 232, 'COINS COLLECTED', 12, '#94a3b8');
-    text(528, 260, String(this.finalCoins), 26, '#ffd166');
-
-    const replay = () => this.scene.start('GameScene', {
-      level: 1, score: 0, coins: 0, lives: 3
+    const countFrom = START_MS + 300;
+    timeline.add(countFrom, 1200, countStep($('[data-stat="stages"]'), totals.cleared));
+    timeline.add(countFrom + 150, 1300, countStep($('[data-stat="stars"]'), totals.stars));
+    timeline.add(countFrom + 300, 1400, countStep($('[data-stat="coins"]'), totals.coins));
+    timeline.add(countFrom + 450, 1000, countStep($('[data-stat="secrets"]'), totals.secrets));
+    timeline.add(countFrom + 600, 1500, countStep($('[data-stat="time"]'), totals.seconds, formatTime));
+    timeline.add(countFrom + 750, 1600, countStep($('[data-stat="score"]'), this.finalScore));
+    timeline.play();
+    overlay.addEventListener('pointerdown', event => {
+      if (timeline.finished || event.target.closest('button')) return;
+      timeline.skipping = true;
+      overlay.classList.add('is-skipped');
+      timeline.skip();
     });
-    button(this, 275, 323, 210, 'PLAY AGAIN  >', replay, true);
-    button(this, 525, 323, 210, 'Choose a level', () => this.scene.start('LevelSelectScene'));
 
-    const menu = text(400, 371, 'BACK TO MAIN MENU', 14, '#cbd5e1');
-    menu.setInteractive({ useHandCursor: true });
-    menu.on('pointerdown', () => this.scene.start('MainMenuScene'));
-    text(400, 403, 'Press ENTER to play again', 12, '#94a3b8');
-    if (this.input.keyboard) {
-      this.input.keyboard.once('keydown-ENTER', replay);
-      this.input.keyboard.once('keydown-SPACE', replay);
-    }
+    /* ---------- actions ---------- */
+    let leaving = false;
+    const go = key => {
+      if (leaving) return;
+      leaving = true;
+      overlay.classList.add('is-closing');
+      sfx(this).play('uiTap');
+      fadeToScene(this, key, undefined, { duration: 300 });
+    };
+    const actions = { home: () => go('MainMenuScene'), stages: () => go('LevelSelectScene') };
+    overlay.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', () => actions[btn.dataset.action]());
+      btn.addEventListener('pointerenter', () => sfx(this).play('menuMove'));
+    });
+    bindMenuKeys(this, overlay, { shortcuts: { s: actions.stages, h: actions.home }, onEnter: actions.home });
   }
 }

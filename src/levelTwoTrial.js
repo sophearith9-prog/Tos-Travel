@@ -59,7 +59,7 @@ export function installLevelTwoTrial(scene) {
       stroke: '#172338', strokeThickness: 3,
       backgroundColor: 'rgba(16, 31, 48, 0.82)',
       padding: { left: 8, right: 8, top: 5, bottom: 5 }
-    }).setOrigin(0.5).setDepth(220);
+    }).setOrigin(0.5).setDepth(220).setVisible(false);
 
   // The plate sits on the broad finish terrace, just before the finish flag.
   const plate = scene.physics.add.staticImage(scene.flagX - 66, 189, 'temple-pressure-plate')
@@ -75,7 +75,6 @@ export function installLevelTwoTrial(scene) {
     scene.templeQuestText.setText('LOTUS SWITCH PRESSED  -  ANGKOR GATE OPEN')
       .setColor('#9ce3ba');
     scene.goalLabel?.setText('OPEN').setColor('#9ce3ba');
-    scene.finishFlag?.setTint(0xb9f2c7);
     scene.score += 300;
     playSound(scene, 'stomp', { volume: 0.55 });
     scene.showFloatingText(switchPlate.x, switchPlate.y - 16, 'TEMPLE GATE OPEN!  +300', '#a9f2c0');
