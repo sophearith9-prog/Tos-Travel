@@ -25,7 +25,8 @@ export default {
         }
         const player = scene.player;
         if (active || !player?.body?.enable || scene.isLevelFinished) return;
-        if (Math.abs(player.x - x) < 14 && Math.abs(player.body.bottom - floorY) < 30) {
+        // A tall column at the post, so jumping past it still counts.
+        if (Math.abs(player.x - x) < 16 && player.body.bottom <= floorY + 4 && player.body.bottom >= floorY - 110) {
           scene.activeCheckpoint = spot;
           scene.lastSafeGround = { ...spot };
           playSound(scene, 'coin', { volume: 0.5, rate: 0.8 });

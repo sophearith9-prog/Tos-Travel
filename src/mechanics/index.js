@@ -21,6 +21,11 @@ import windZone from './windZone.js';
 import checkpoint from './checkpoint.js';
 import spikes from './spikes.js';
 import miniBoss from './miniBoss.js';
+import waterCurrent from './waterCurrent.js';
+import elephantPlatform from './elephantPlatform.js';
+import chargingBoar from './chargingBoar.js';
+import secretArea from './secretArea.js';
+import tutorialHint from './tutorialHint.js';
 
 const MECHANICS = new Map();
 
@@ -31,7 +36,8 @@ export function registerMechanic(definition) {
   MECHANICS.set(definition.type, definition);
 }
 
-[movingPlatform, sinkingPlatform, risingWater, autoScrollCamera, windZone, checkpoint, spikes, miniBoss]
+[movingPlatform, sinkingPlatform, risingWater, autoScrollCamera, windZone, checkpoint, spikes, miniBoss,
+  waterCurrent, elephantPlatform, chargingBoar, secretArea, tutorialHint]
   .forEach(registerMechanic);
 
 // Create every mechanic a stage asks for and drive them until the scene shuts down.

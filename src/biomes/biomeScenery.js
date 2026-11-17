@@ -1,5 +1,5 @@
 import { resolveEnvironment } from './biomeConfig.js';
-import { FAR, MID, NEAR, canvasTexture, skyTexture, farTexture, midTexture, nearTexture, ambientTextures, propTextures } from './biomeArt.js';
+import { FAR, MID, NEAR, UNDER, canvasTexture, skyTexture, farTexture, midTexture, nearTexture, underTexture, ambientTextures, propTextures } from './biomeArt.js';
 import { findFloorGaps } from '../pitMarkers.js';
 
 // Biome backdrop for a stage: sky, three parallax layers, ground props, pooled ambient
@@ -50,6 +50,14 @@ export function addBiomeScenery(scene, env) {
     layer(midTexture(scene, look), MID, midBottom, -24, 0.22, 0.35),
     layer(nearTexture(scene, look), NEAR, HORIZON + 4 + (NEAR.h - NEAR.base), -20, 0.5, 0.6)
   ];
+  // Hand-made stages can open up below the horizon (valleys, pools): fill it with forest floor.
+  if (scene.layout) {
+    const underTop = HORIZON + 2;
+    const height = (225 - underTop) * unit + 450 / zoom;   // to the bottom of the view and beyond
+    const sprite = scene.add.tileSprite(400, toWorldY(underTop) + height / 2, viewW, height, underTexture(scene, look))
+      .setScrollFactor(0).setDepth(-21).setTileScale(unit, unit);
+    layers.push({ sprite, baseY: sprite.y, parallax: 0.5, lift: 0.6 });
+  }
   const midLayer = layers[1];
   // Convert a point in the mid texture to its current on-screen world position.
   const midPoint = (texX, texY, scrollX, lift) => ({
@@ -245,6 +253,7 @@ export function addBiomeScenery(scene, env) {
 // the finish area and the very start, so they never hide a hazard or route.
 function addGroundProps(scene, look) {
   const layer = scene.groundLayer, map = scene.map;
+  if (scene.layout) { addLayoutProps(scene, look); return; }
   if (!layer || scene.collisionGround !== layer) return;
   const props = propTextures(scene, look);
   const gaps = findFloorGaps(scene);
@@ -257,5 +266,19 @@ function addGroundProps(scene, look) {
     const key = props[(h >>> 8) % props.length];
     scene.add.image(x * map.tileWidth + 3 + ((h >>> 4) % 12), groundRow * map.tileHeight + 1, key)
       .setOrigin(0.5, 1).setDepth(-1);
+  }
+}
+
+// Hand-made layouts: decorate the tops of solid platforms (skip one-way ledges and any
+// platform marked `props: false`, e.g. a floor covered in hazards).
+function addLayoutProps(scene, look) {
+  const props = propTextures(scene, look);
+  for (const p of scene.layout.platforms) {
+    if (p.oneWay || p.props === false || p.width < 54) continue;
+    for (let x = p.x + 10; x < p.x + p.width - 10; x += 9) {
+      const h = Math.imul(Math.round(x) + scene.currentLevel * 131, 2654435761) >>> 0;
+      if (h % 100 > 38) continue;
+      scene.add.image(x, p.y + 1, props[(h >>> 8) % props.length]).setOrigin(0.5, 1).setDepth(-1);
+    }
   }
 }

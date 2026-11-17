@@ -8,9 +8,9 @@
 import { PROVINCE_ROUTE } from './provinceRoute.js';
 import { validateLayout } from './layoutFormat.js';
 
-// import level10 from './level10Layout.js';
+import level10 from './level10Layout.js';
 const HAND_MADE_LAYOUTS = [
-  // level10,
+  level10,
 ];
 
 const layouts = new Map();

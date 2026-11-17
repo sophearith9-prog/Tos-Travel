@@ -651,6 +651,27 @@ export function nearTexture(scene, look) {
   });
 }
 
+/* ---------- underlay below the horizon (hand-made layouts with valleys and pools) ---------- */
+
+export const UNDER = { w: 128, h: 64 };
+
+// Dense, dark forest floor that tiles in both directions, so deep valleys and pools in
+// hand-made stages show foliage instead of open sky below the horizon.
+export function underTexture(scene, look) {
+  return canvasTexture(scene, `biome-under-${look.biome}-${look.timeKey}`, UNDER.w, UNDER.h, p => {
+    const c = look.near, rnd = seeded(hashString(`${look.biome}-under`));
+    const base = mixHex(c.dark, '#0c120e', 0.35);
+    p.rect(0, 0, UNDER.w, UNDER.h, base);
+    for (let i = 0; i < 5; i++) { const x = Math.floor(rnd() * UNDER.w); p.wrect(x, 0, 3, UNDER.h, mixHex(c.trunk, '#000000', 0.35)); }
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * UNDER.w, y = 9 + rnd() * (UNDER.h - 18), r = 4 + Math.floor(rnd() * 6);
+      p.oval(x, y, r + 2, Math.round(r * 0.7), mixHex(c.dark, '#000000', 0.15));
+      p.oval(x - 1, y - 1, r, Math.round(r * 0.55), mixHex(c.mid, c.dark, 0.45));
+      p.wrect(x - r * 0.4, y - r * 0.6, r * 0.6, 1, mixHex(c.light, c.dark, 0.5));
+    }
+  });
+}
+
 /* ---------- sprites for ambient life and ground props ---------- */
 
 function frames(texture, count, fw, fh) {
